@@ -14,6 +14,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../app/app_controller.dart';
 import '../../app/app_scope.dart';
 import '../../l10n/app_localizations.dart';
+import '../../services/subscription/subscription_manager.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -26,6 +27,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _loading = false;
   String _languageValue = 'system';
   AppThemeStyle _themeValue = AppThemeStyle.purple;
+  PlanPreviewOverride _planPreview = PlanPreviewOverride.none;
+  bool _isPro = false;
 
   // ✅ Share anchor for iPad (popover)
   final GlobalKey _shareKey = GlobalKey();
@@ -48,11 +51,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final controller = AppScope.of(context);
     final locale = controller.locale;
     final lang = locale?.languageCode ?? 'system';
+    final preview = await SubscriptionManager.getPreviewOverride();
+    final isPro = await SubscriptionManager.isPro();
 
     if (!mounted) return;
     setState(() {
       _languageValue = lang;
       _themeValue = controller.themeStyle;
+      _planPreview = preview;
+      _isPro = isPro;
       _loading = false;
     });
   }
@@ -81,6 +88,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Theme saved.')),
+    );
+  }
+
+  Future<void> _onPlanPreviewChanged(PlanPreviewOverride value) async {
+    setState(() => _planPreview = value);
+    await SubscriptionManager.setPreviewOverride(value);
+    final isPro = await SubscriptionManager.isPro();
+    if (!mounted) return;
+    setState(() => _isPro = isPro);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          value == PlanPreviewOverride.pro
+              ? 'Previewing Pro version.'
+              : value == PlanPreviewOverride.free
+                  ? 'Previewing Free version.'
+                  : 'Using real purchase status.',
+        ),
+      ),
     );
   }
 
@@ -292,6 +318,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const Text(
                     'Changes the accent color across buttons, controls, and the ShowMyName logo.',
                     style: TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Plan',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _isPro
+                                  ? 'Pro preview active: no ads, premium features.'
+                                  : 'Free preview active: ads visible, basic features.',
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      FilledButton(
+                        onPressed: () => context.push('/paywall'),
+                        child: const Text('View Pro'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  SegmentedButton<PlanPreviewOverride>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(
+                        value: PlanPreviewOverride.free,
+                        label: Text('Free'),
+                      ),
+                      ButtonSegment(
+                        value: PlanPreviewOverride.pro,
+                        label: Text('Pro'),
+                      ),
+                      ButtonSegment(
+                        value: PlanPreviewOverride.none,
+                        label: Text('Real'),
+                      ),
+                    ],
+                    selected: {_planPreview},
+                    onSelectionChanged: (selected) {
+                      _onPlanPreviewChanged(selected.first);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Use Free and Pro here to preview how the app looks before store purchases are live.',
+                    style: TextStyle(color: Colors.white60, fontSize: 12),
                   ),
                 ],
               ),

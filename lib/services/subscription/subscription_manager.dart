@@ -15,6 +15,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 enum PlanPreviewOverride { none, free, pro }
 
 class SubscriptionManager {
+  static const String monthlyProductId = 'showmyname_pro_monthly';
+  static const String yearlyProductId = 'showmyname_pro_yearly';
+  static const String monthlyFallbackPrice = r'$0.99 / month';
+  static const String yearlyFallbackPrice = r'$9.99 / year';
+
   // Real pro flag (store-driven; persisted locally)
   static const String _kIsProReal = 'is_pro_real_v1';
   static const String _kIsProLegacy = 'is_pro';
@@ -25,13 +30,13 @@ class SubscriptionManager {
   // - "showmyname_pro_monthly"
   // - "showmyname_pro_yearly"
   static const Set<String> _kProductIds = {
-    'showmyname_pro_monthly',
-    'showmyname_pro_yearly',
+    monthlyProductId,
+    yearlyProductId,
   };
 
   // Public reactive flag (so Ads/UI can react)
   static final StreamController<bool> _proStream =
-  StreamController<bool>.broadcast();
+      StreamController<bool>.broadcast();
   static Stream<bool> get proStream => _proStream.stream;
 
   static bool _initialized = false;
@@ -52,12 +57,12 @@ class SubscriptionManager {
 
     // Load products
     final response =
-    await InAppPurchase.instance.queryProductDetails(_kProductIds);
+        await InAppPurchase.instance.queryProductDetails(_kProductIds);
     _products = response.productDetails;
 
     // Listen for purchase updates
     _purchaseSub = InAppPurchase.instance.purchaseStream.listen(
-          (purchases) async {
+      (purchases) async {
         await _handlePurchaseUpdates(purchases);
       },
       onError: (_) {},
@@ -156,8 +161,8 @@ class SubscriptionManager {
   }
 
   static Future<void> _handlePurchaseUpdates(
-      List<PurchaseDetails> purchases,
-      ) async {
+    List<PurchaseDetails> purchases,
+  ) async {
     bool foundActivePro = false;
 
     for (final p in purchases) {
@@ -165,7 +170,7 @@ class SubscriptionManager {
       final isOurProduct = _kProductIds.contains(p.productID);
 
       if ((p.status == PurchaseStatus.purchased ||
-          p.status == PurchaseStatus.restored) &&
+              p.status == PurchaseStatus.restored) &&
           isOurProduct) {
         foundActivePro = true;
 
