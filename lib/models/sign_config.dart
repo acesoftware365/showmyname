@@ -56,6 +56,11 @@ class SignConfig {
   final LogoTransitionEffect logoEffect;
   final Duration logoHold;
 
+  // Handwriting
+  final List<List<Offset>> handwritingStrokes;
+  final Color handwritingColor;
+  final double handwritingStrokeWidth;
+
   // Pro flag
   final bool isPro;
 
@@ -103,6 +108,9 @@ class SignConfig {
     this.logoRotation = false,
     this.logoEffect = LogoTransitionEffect.fade,
     this.logoHold = const Duration(milliseconds: 1500),
+    this.handwritingStrokes = const <List<Offset>>[],
+    this.handwritingColor = Colors.white,
+    this.handwritingStrokeWidth = 12,
     this.isPro = false,
     this.singleColor,
     this.cycleColors = const <Color>[],
@@ -113,4 +121,5 @@ class SignConfig {
 
   bool get isColorOnly => signType == SignType.colorOnly;
   bool get isLogoOnly => signType == SignType.logoOnly;
+  bool get isHandwritingOnly => signType == SignType.handwritingOnly;
 }

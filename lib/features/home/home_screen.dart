@@ -20,6 +20,7 @@ import '../../l10n/app_localizations.dart';
 import '../../models/sign_config.dart';
 import '../../models/sign_mode.dart';
 import '../display/widgets/effect_sign.dart';
+import '../display/widgets/handwriting_sign.dart';
 import '../../services/logo/logo_storage_service.dart';
 import '../../services/subscription/subscription_manager.dart';
 import 'widgets/mode_selector.dart';
@@ -87,6 +88,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _logoRotation = false;
   LogoTransitionEffect _logoEffect = LogoTransitionEffect.fade;
   double _logoHoldSeconds = 1.5;
+
+  // Handwriting
+  final List<List<Offset>> _handwritingStrokes = <List<Offset>>[];
+  Color _handwritingColor = Colors.white;
+  double _handwritingStrokeWidth = 10;
 
   // Pro
   bool _loading = false;
@@ -356,6 +362,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _applyHomeMode(HomeMode m) {
+    if (m == HomeMode.handwriting && !_isPro) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Handwriting is included with Pro.')),
+      );
+      context.push('/paywall').then((_) => _loadState());
+      return;
+    }
+
     setState(() {
       _homeMode = m;
 
@@ -377,6 +391,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       if (m == HomeMode.logo) {
         _mode = SignUsageMode.concert; // not important here
         _type = SignType.logoOnly;
+        _motionDirection = MotionDirection.none;
+        _motionStyle = MotionStyle.loop;
+        _colorShift = false;
+        return;
+      }
+
+      if (m == HomeMode.handwriting) {
+        _mode = SignUsageMode.concert;
+        _type = SignType.handwritingOnly;
         _motionDirection = MotionDirection.none;
         _motionStyle = MotionStyle.loop;
         _colorShift = false;
@@ -559,6 +582,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       return;
     }
 
+    // Handwriting
+    if (_type == SignType.handwritingOnly) {
+      if (_handwritingStrokes.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Write a name first.')),
+        );
+        return;
+      }
+
+      final config = SignConfig(
+        message: null,
+        usageMode: _mode,
+        signType: SignType.handwritingOnly,
+        backgroundColor: Colors.black,
+        handwritingStrokes:
+            _handwritingStrokes.map((s) => List<Offset>.from(s)).toList(),
+        handwritingColor: _handwritingColor,
+        handwritingStrokeWidth: _handwritingStrokeWidth,
+        isPro: _isPro,
+      );
+
+      context.push('/display', extra: config);
+      return;
+    }
+
     // Text modes
     final msg = _currentTextController.text.trim();
     if (msg.isEmpty) return;
@@ -708,6 +756,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         logoRotation: _logoRotation,
         logoEffect: _logoEffect,
         logoHold: Duration(milliseconds: (_logoHoldSeconds * 1000).round()),
+      );
+    }
+
+    if (_homeMode == HomeMode.handwriting) {
+      return SignConfig(
+        usageMode: SignUsageMode.concert,
+        signType: SignType.handwritingOnly,
+        backgroundColor: Colors.black,
+        handwritingStrokes:
+            _handwritingStrokes.map((s) => List<Offset>.from(s)).toList(),
+        handwritingColor: _handwritingColor,
+        handwritingStrokeWidth: _handwritingStrokeWidth,
       );
     }
 
@@ -865,6 +925,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         child:
                             Image.file(File(_logoPath!), fit: BoxFit.contain),
                       ),
+              ),
+            )
+          else if (config.isHandwritingOnly)
+            Positioned.fill(
+              child: HandwritingSign(
+                strokes: config.handwritingStrokes,
+                color: config.handwritingColor,
+                strokeWidth: config.handwritingStrokeWidth,
+                preview: true,
               ),
             )
           else
@@ -1751,6 +1820,114 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildHandwritingCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Handwriting',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _handwritingStrokes.isEmpty
+                      ? null
+                      : () => setState(_handwritingStrokes.clear),
+                  icon: const Icon(Icons.backspace_outlined),
+                  label: const Text('Clear'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Write a name with your finger. Pro shows it large fullscreen.',
+              style: TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 12),
+            _buildHandwritingPad(),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () async {
+                      final color = await _pickColorDialog(context);
+                      if (color == null) return;
+                      setState(() => _handwritingColor = color);
+                    },
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _colorSwatch(_handwritingColor),
+                        const SizedBox(width: 10),
+                        const Text('Ink color'),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _labeledSlider(
+              'Stroke size',
+              _handwritingStrokeWidth,
+              4,
+              22,
+              (v) => setState(() => _handwritingStrokeWidth = v),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHandwritingPad() {
+    return AspectRatio(
+      aspectRatio: 2.4,
+      child: GestureDetector(
+        onPanStart: (details) {
+          setState(() {
+            _handwritingStrokes.add([details.localPosition]);
+          });
+        },
+        onPanUpdate: (details) {
+          if (_handwritingStrokes.isEmpty) return;
+          setState(() {
+            _handwritingStrokes.last.add(details.localPosition);
+          });
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.65),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.22),
+                blurRadius: 22,
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: HandwritingSign(
+            strokes: _handwritingStrokes,
+            color: _handwritingColor,
+            strokeWidth: _handwritingStrokeWidth,
+            preview: true,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _tipController.dispose();
@@ -1778,6 +1955,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     final isTextMode =
         _homeMode == HomeMode.airport || _homeMode == HomeMode.event;
+    final isHandwritingMode = _homeMode == HomeMode.handwriting;
     final isLogoMode = _homeMode == HomeMode.logo;
 
     return Scaffold(
@@ -1830,11 +2008,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             airportLabel: t.airportPickup,
                             eventLabel: t.concertEvent,
                             colorWaveLabel: t.colorWave,
+                            handwritingLabel: 'Handwriting',
                             logoLabel: t.logo,
                           ),
                         ),
                       ),
                       const SizedBox(height: 14),
+                      if (isHandwritingMode) _buildHandwritingCard(),
+                      if (isHandwritingMode) const SizedBox(height: 14),
                       if (isLogoMode)
                         Card(
                           child: Padding(

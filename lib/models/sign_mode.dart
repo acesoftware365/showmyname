@@ -11,6 +11,7 @@ enum SignType {
   textMotion, // concert/event: texto con movimiento
   logoOnly, // logo fullscreen
   colorOnly, // ColorWave: colores fullscreen
+  handwritingOnly, // handwritten name fullscreen
 }
 
 enum MotionDirection {

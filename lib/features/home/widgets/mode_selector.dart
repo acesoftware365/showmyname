@@ -13,6 +13,7 @@ enum HomeMode {
   airport,
   event,
   colorWave,
+  handwriting,
   logo,
 }
 
@@ -23,6 +24,7 @@ class ModeSelector extends StatelessWidget {
   final String airportLabel;
   final String eventLabel;
   final String colorWaveLabel;
+  final String handwritingLabel;
   final String logoLabel;
 
   const ModeSelector({
@@ -32,6 +34,7 @@ class ModeSelector extends StatelessWidget {
     required this.airportLabel,
     required this.eventLabel,
     required this.colorWaveLabel,
+    required this.handwritingLabel,
     required this.logoLabel,
   });
 
@@ -91,54 +94,83 @@ class ModeSelector extends StatelessWidget {
     final tablet = _isTablet(context);
     final iconSize = tablet ? 24.0 : null;
 
-    return SegmentedButton<HomeMode>(
-      // ✅ Remove the default selected check icon
-      showSelectedIcon: false,
-      style: ButtonStyle(
-        minimumSize: WidgetStatePropertyAll(Size.fromHeight(tablet ? 64 : 48)),
-        padding: WidgetStatePropertyAll(
-          EdgeInsets.symmetric(
-            horizontal: tablet ? 20 : 10,
-            vertical: tablet ? 16 : 10,
-          ),
-        ),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: SegmentedButton<HomeMode>(
+              // ✅ Remove the default selected check icon
+              showSelectedIcon: false,
+              style: ButtonStyle(
+                minimumSize:
+                    WidgetStatePropertyAll(Size.fromHeight(tablet ? 64 : 48)),
+                padding: WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(
+                    horizontal: tablet ? 20 : 10,
+                    vertical: tablet ? 16 : 10,
+                  ),
+                ),
+              ),
 
-      segments: [
-        ButtonSegment(
-          value: HomeMode.airport,
-          // In vertical mode, put icon INSIDE label (top), so icon param must be null.
-          icon: vertical ? null : Icon(Icons.flight_takeoff, size: iconSize),
-          label: vertical
-              ? _verticalLabel(Icons.flight_takeoff, airportLabel,
-                  tablet: tablet)
-              : _horizontalText(airportLabel, tablet: tablet),
-        ),
-        ButtonSegment(
-          value: HomeMode.event,
-          icon: vertical ? null : Icon(Icons.mic_none, size: iconSize),
-          label: vertical
-              ? _verticalLabel(Icons.mic_none, eventLabel, tablet: tablet)
-              : _horizontalText(eventLabel, tablet: tablet),
-        ),
-        ButtonSegment(
-          value: HomeMode.colorWave,
-          icon: vertical ? null : Icon(Icons.palette_outlined, size: iconSize),
-          label: vertical
-              ? _verticalLabel(Icons.palette_outlined, colorWaveLabel,
-                  tablet: tablet)
-              : _horizontalText(colorWaveLabel, tablet: tablet),
-        ),
-        ButtonSegment(
-          value: HomeMode.logo,
-          icon: vertical ? null : Icon(Icons.image_outlined, size: iconSize),
-          label: vertical
-              ? _verticalLabel(Icons.image_outlined, logoLabel, tablet: tablet)
-              : _horizontalText(logoLabel, tablet: tablet),
-        ),
-      ],
-      selected: {value},
-      onSelectionChanged: (s) => onChanged(s.first),
+              segments: [
+                ButtonSegment(
+                  value: HomeMode.airport,
+                  // In vertical mode, put icon INSIDE label (top), so icon param must be null.
+                  icon: vertical
+                      ? null
+                      : Icon(Icons.flight_takeoff, size: iconSize),
+                  label: vertical
+                      ? _verticalLabel(Icons.flight_takeoff, airportLabel,
+                          tablet: tablet)
+                      : _horizontalText(airportLabel, tablet: tablet),
+                ),
+                ButtonSegment(
+                  value: HomeMode.event,
+                  icon: vertical ? null : Icon(Icons.mic_none, size: iconSize),
+                  label: vertical
+                      ? _verticalLabel(Icons.mic_none, eventLabel,
+                          tablet: tablet)
+                      : _horizontalText(eventLabel, tablet: tablet),
+                ),
+                ButtonSegment(
+                  value: HomeMode.colorWave,
+                  icon: vertical
+                      ? null
+                      : Icon(Icons.palette_outlined, size: iconSize),
+                  label: vertical
+                      ? _verticalLabel(Icons.palette_outlined, colorWaveLabel,
+                          tablet: tablet)
+                      : _horizontalText(colorWaveLabel, tablet: tablet),
+                ),
+                ButtonSegment(
+                  value: HomeMode.handwriting,
+                  icon: vertical
+                      ? null
+                      : Icon(Icons.draw_outlined, size: iconSize),
+                  label: vertical
+                      ? _verticalLabel(Icons.draw_outlined, handwritingLabel,
+                          tablet: tablet)
+                      : _horizontalText(handwritingLabel, tablet: tablet),
+                ),
+                ButtonSegment(
+                  value: HomeMode.logo,
+                  icon: vertical
+                      ? null
+                      : Icon(Icons.image_outlined, size: iconSize),
+                  label: vertical
+                      ? _verticalLabel(Icons.image_outlined, logoLabel,
+                          tablet: tablet)
+                      : _horizontalText(logoLabel, tablet: tablet),
+                ),
+              ],
+              selected: {value},
+              onSelectionChanged: (s) => onChanged(s.first),
+            ),
+          ),
+        );
+      },
     );
   }
 }

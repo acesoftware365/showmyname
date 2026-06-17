@@ -16,6 +16,7 @@ import '../../l10n/app_localizations.dart';
 import '../../models/sign_config.dart';
 import '../../models/sign_mode.dart';
 import 'widgets/effect_sign.dart';
+import 'widgets/handwriting_sign.dart';
 
 class DisplayScreen extends StatefulWidget {
   final SignConfig config;
@@ -434,7 +435,13 @@ class _DisplayScreenState extends State<DisplayScreen>
         ? _buildColorOnly(c)
         : c.isLogoOnly
             ? _buildLogoOnly(c)
-            : _buildText(c);
+            : c.isHandwritingOnly
+                ? HandwritingSign(
+                    strokes: c.handwritingStrokes,
+                    color: c.handwritingColor,
+                    strokeWidth: c.handwritingStrokeWidth,
+                  )
+                : _buildText(c);
 
     return Scaffold(
       backgroundColor: c.backgroundColor,
