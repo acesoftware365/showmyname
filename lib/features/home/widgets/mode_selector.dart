@@ -47,24 +47,52 @@ class ModeSelector extends StatelessWidget {
       _ModeItem(HomeMode.logo, Icons.image_outlined, logoLabel),
     ];
 
-    return SizedBox(
-      height: tablet ? 92 : 78,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: items.length,
-        separatorBuilder: (_, __) => SizedBox(width: tablet ? 12 : 8),
-        itemBuilder: (context, index) {
-          final item = items[index];
-          return _ModePill(
-            selected: item.mode == value,
-            icon: item.icon,
-            label: item.label,
-            tablet: tablet,
-            onTap: () => onChanged(item.mode),
-          );
-        },
-      ),
+    final gap = tablet ? 12.0 : 8.0;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final topWidth = (constraints.maxWidth - gap * 2) / 3;
+        final bottomWidth = (constraints.maxWidth - gap) / 2;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                for (var i = 0; i < 3; i++) ...[
+                  SizedBox(
+                    width: topWidth,
+                    child: _ModePill(
+                      selected: items[i].mode == value,
+                      icon: items[i].icon,
+                      label: items[i].label,
+                      tablet: tablet,
+                      onTap: () => onChanged(items[i].mode),
+                    ),
+                  ),
+                  if (i < 2) SizedBox(width: gap),
+                ],
+              ],
+            ),
+            SizedBox(height: gap),
+            Row(
+              children: [
+                for (var i = 3; i < items.length; i++) ...[
+                  SizedBox(
+                    width: bottomWidth,
+                    child: _ModePill(
+                      selected: items[i].mode == value,
+                      icon: items[i].icon,
+                      label: items[i].label,
+                      tablet: tablet,
+                      onTap: () => onChanged(items[i].mode),
+                    ),
+                  ),
+                  if (i < items.length - 1) SizedBox(width: gap),
+                ],
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -95,11 +123,9 @@ class _ModePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = Theme.of(context).colorScheme.primary;
-    final width = tablet ? 142.0 : 104.0;
-
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
-      width: width,
+      height: tablet ? 84 : 68,
       decoration: BoxDecoration(
         color: selected
             ? accent.withOpacity(0.28)
