@@ -42,13 +42,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAll();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadAll());
   }
 
   Future<void> _loadAll() async {
     setState(() => _loading = true);
 
-    final controller = AppScope.of(context);
+    final controller = AppScope.read(context);
     final locale = controller.locale;
     final lang = locale?.languageCode ?? 'system';
     final preview = await SubscriptionManager.getPreviewOverride();
@@ -65,7 +65,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _onLanguageChanged(String value) async {
-    final controller = AppScope.of(context);
+    final controller = AppScope.read(context);
     setState(() => _languageValue = value);
 
     if (value == 'system') {
@@ -81,7 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _onThemeChanged(AppThemeStyle value) async {
-    final controller = AppScope.of(context);
+    final controller = AppScope.read(context);
     setState(() => _themeValue = value);
     await controller.setThemeStyle(value);
 

@@ -17,4 +17,11 @@ class AppScope extends InheritedNotifier<AppController> {
     assert(scope != null, 'AppScope not found in widget tree.');
     return scope!.notifier!;
   }
+
+  static AppController read(BuildContext context) {
+    final element = context.getElementForInheritedWidgetOfExactType<AppScope>();
+    final scope = element?.widget as AppScope?;
+    assert(scope != null, 'AppScope not found in widget tree.');
+    return scope!.notifier!;
+  }
 }
