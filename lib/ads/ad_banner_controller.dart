@@ -4,21 +4,19 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+import 'ad_health_manager.dart';
+
 class AdBannerController extends ChangeNotifier {
   AdBannerController._();
 
   static final AdBannerController instance = AdBannerController._();
-
-  static const Duration _minRequestInterval = Duration(seconds: 30);
-  static const Duration _failureCooldown = Duration(seconds: 45);
+  static const String _slot = AdHealthManager.homeBanner;
 
   BannerAd? _ad;
   bool _loaded = false;
   bool _loading = false;
   int? _lastWidth;
   Orientation? _lastOrientation;
-  DateTime? _lastRequestAt;
-  DateTime? _retryAfter;
 
   BannerAd? get ad => _ad;
   bool get isLoaded => _loaded && _ad != null;
@@ -57,17 +55,12 @@ class AdBannerController extends ChangeNotifier {
       return;
     }
 
-    final now = DateTime.now();
-    if (_retryAfter != null && now.isBefore(_retryAfter!)) {
+    final health = AdHealthManager.instance;
+    final decision = health.canRequest(_slot);
+    if (!decision.allowed) {
       _log(
-        'request skipped: cooldown active for ${_retryAfter!.difference(now).inSeconds}s',
-      );
-      return;
-    }
-    if (_lastRequestAt != null &&
-        now.difference(_lastRequestAt!) < _minRequestInterval) {
-      _log(
-        'request skipped: min interval active for ${_minRequestInterval.inSeconds - now.difference(_lastRequestAt!).inSeconds}s',
+        'request skipped: ${decision.reason}'
+        '${decision.wait == null ? '' : ' wait=${decision.wait!.inSeconds}s'}',
       );
       return;
     }
@@ -76,18 +69,21 @@ class AdBannerController extends ChangeNotifier {
     _loaded = false;
     _ad?.dispose();
     _ad = null;
-    _lastRequestAt = now;
     notifyListeners();
 
-    final adSize = await AdSize.getAnchoredAdaptiveBannerAdSize(orientation, width);
+    final adSize =
+        await AdSize.getAnchoredAdaptiveBannerAdSize(orientation, width);
     if (adSize == null) {
       _loading = false;
-      _log('request aborted: no adaptive size for width=$width orientation=$orientation');
+      _log(
+          'request aborted: no adaptive size for width=$width orientation=$orientation');
       notifyListeners();
       return;
     }
 
-    _log('loading banner width=$width orientation=$orientation size=${adSize.width}x${adSize.height}');
+    health.markRequestStarted(_slot);
+    _log(
+        'loading banner width=$width orientation=$orientation size=${adSize.width}x${adSize.height}');
 
     final ad = BannerAd(
       adUnitId: unitId,
@@ -100,7 +96,7 @@ class AdBannerController extends ChangeNotifier {
           _loading = false;
           _lastWidth = width;
           _lastOrientation = orientation;
-          _retryAfter = null;
+          health.markLoaded(_slot);
           _log('banner loaded width=$width orientation=$orientation');
           notifyListeners();
         },
@@ -109,9 +105,9 @@ class AdBannerController extends ChangeNotifier {
           _ad = null;
           _loaded = false;
           _loading = false;
-          _retryAfter = DateTime.now().add(_failureCooldown);
+          health.markFailed(_slot, err);
           _log(
-            'banner failed code=${err.code} message="${err.message}" cooldown=${_failureCooldown.inSeconds}s',
+            'banner failed code=${err.code} message="${err.message}"',
           );
           notifyListeners();
         },

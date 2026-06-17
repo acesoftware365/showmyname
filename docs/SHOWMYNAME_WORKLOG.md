@@ -211,3 +211,25 @@ Known tooling issue:
 - Recheck whether ColorWave Fade visibly changes color in preview and fullscreen.
 - Recheck logo effect differences on device.
 - Finalize legal terms before paid launch.
+
+## AdMob Health System
+
+Added for version 1.0.15+20.
+
+Goal:
+
+- Protect AdMob match rate by avoiding repeated ad requests when inventory is not filling.
+- Keep rewarded ads faster by preloading one ad before the user taps a Pro feature.
+- Avoid policy-risky behavior: no forced clicks, no fake impressions, no artificial ad refresh tricks.
+
+Behavior:
+
+- Rewarded ads are cached for a short safe window and reused when the user chooses "Watch ad".
+- Banner and rewarded requests share a health manager with request spacing, in-flight protection, retry cooldown, and exponential backoff after failures.
+- Failed loads and timeouts are counted locally per day so we can diagnose whether the app is asking too often or AdMob is not filling.
+- If a Free user opens the home screen, the app quietly preloads the rewarded ad once.
+
+Important:
+
+- No app code can guarantee AdMob match rate stays high. Match rate also depends on country, demand, consent, policies, and ad inventory.
+- This system reduces unnecessary requests, which is the safest lever inside the app.

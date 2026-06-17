@@ -262,6 +262,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _logoPaths = logoPaths;
       _loading = false;
     });
+
+    if (!pro) {
+      unawaited(RewardedAdService.instance.preload());
+    }
   }
 
   bool get _logoExistsSync {
