@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../models/sign_mode.dart';
+
 class HandwritingSign extends StatelessWidget {
   final List<List<Offset>> strokes;
   final Color color;
   final double strokeWidth;
+  final HandwritingStrokeStyle style;
   final bool preview;
 
   const HandwritingSign({
@@ -11,6 +14,7 @@ class HandwritingSign extends StatelessWidget {
     required this.strokes,
     required this.color,
     required this.strokeWidth,
+    this.style = HandwritingStrokeStyle.smooth,
     this.preview = false,
   });
 
@@ -21,6 +25,7 @@ class HandwritingSign extends StatelessWidget {
         strokes: strokes,
         color: color,
         strokeWidth: strokeWidth,
+        style: style,
         preview: preview,
       ),
       child: strokes.isEmpty
@@ -43,12 +48,14 @@ class _HandwritingPainter extends CustomPainter {
   final List<List<Offset>> strokes;
   final Color color;
   final double strokeWidth;
+  final HandwritingStrokeStyle style;
   final bool preview;
 
   const _HandwritingPainter({
     required this.strokes,
     required this.color,
     required this.strokeWidth,
+    required this.style,
     required this.preview,
   });
 
@@ -71,20 +78,43 @@ class _HandwritingPainter extends CustomPainter {
       (size.height - fitted.height) / 2 - bounds.top * safeScale,
     );
 
+    final glowOpacity = switch (style) {
+      HandwritingStrokeStyle.neon => 0.48,
+      HandwritingStrokeStyle.marker => 0.18,
+      HandwritingStrokeStyle.chalk => 0.12,
+      HandwritingStrokeStyle.smooth => 0.30,
+    };
+    final glowWidth = switch (style) {
+      HandwritingStrokeStyle.neon => 2.25,
+      HandwritingStrokeStyle.marker => 1.35,
+      HandwritingStrokeStyle.chalk => 1.2,
+      HandwritingStrokeStyle.smooth => 1.7,
+    };
+    final blur = switch (style) {
+      HandwritingStrokeStyle.neon => 22.0,
+      HandwritingStrokeStyle.marker => 9.0,
+      HandwritingStrokeStyle.chalk => 5.0,
+      HandwritingStrokeStyle.smooth => 16.0,
+    };
+
     final glowPaint = Paint()
-      ..color = color.withOpacity(0.30)
+      ..color = color.withOpacity(glowOpacity)
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = strokeWidth * safeScale * 1.7
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
+      ..strokeWidth = strokeWidth * safeScale * glowWidth
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
 
     final mainPaint = Paint()
-      ..color = color
+      ..color = style == HandwritingStrokeStyle.chalk
+          ? color.withOpacity(0.82)
+          : color
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = strokeWidth * safeScale;
+      ..strokeWidth = strokeWidth *
+          safeScale *
+          (style == HandwritingStrokeStyle.marker ? 1.28 : 1.0);
 
     for (final stroke in strokes) {
       final path = _pathFor(stroke, safeScale, offset);
@@ -94,6 +124,30 @@ class _HandwritingPainter extends CustomPainter {
     for (final stroke in strokes) {
       final path = _pathFor(stroke, safeScale, offset);
       canvas.drawPath(path, mainPaint);
+    }
+
+    if (style == HandwritingStrokeStyle.chalk) {
+      final dustPaint = Paint()
+        ..color = color.withOpacity(0.18)
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..strokeWidth = strokeWidth * safeScale * 0.38;
+      for (final stroke in strokes) {
+        final jittered = stroke
+            .asMap()
+            .entries
+            .map(
+              (entry) =>
+                  entry.value +
+                  Offset(
+                    entry.key.isEven ? 1.2 : -1.2,
+                    entry.key % 3 == 0 ? -1.1 : 1.1,
+                  ),
+            )
+            .toList();
+        canvas.drawPath(_pathFor(jittered, safeScale, offset), dustPaint);
+      }
     }
   }
 
@@ -125,6 +179,7 @@ class _HandwritingPainter extends CustomPainter {
     return oldDelegate.strokes != strokes ||
         oldDelegate.color != color ||
         oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.style != style ||
         oldDelegate.preview != preview;
   }
 }

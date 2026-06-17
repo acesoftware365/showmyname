@@ -60,6 +60,7 @@ class SignConfig {
   final List<List<Offset>> handwritingStrokes;
   final Color handwritingColor;
   final double handwritingStrokeWidth;
+  final HandwritingStrokeStyle handwritingStyle;
 
   // Pro flag
   final bool isPro;
@@ -111,6 +112,7 @@ class SignConfig {
     this.handwritingStrokes = const <List<Offset>>[],
     this.handwritingColor = Colors.white,
     this.handwritingStrokeWidth = 12,
+    this.handwritingStyle = HandwritingStrokeStyle.smooth,
     this.isPro = false,
     this.singleColor,
     this.cycleColors = const <Color>[],

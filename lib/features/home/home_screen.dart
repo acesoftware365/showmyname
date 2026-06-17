@@ -93,6 +93,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final List<List<Offset>> _handwritingStrokes = <List<Offset>>[];
   Color _handwritingColor = Colors.white;
   double _handwritingStrokeWidth = 10;
+  HandwritingStrokeStyle _handwritingStyle = HandwritingStrokeStyle.smooth;
 
   // Pro
   bool _loading = false;
@@ -600,6 +601,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             _handwritingStrokes.map((s) => List<Offset>.from(s)).toList(),
         handwritingColor: _handwritingColor,
         handwritingStrokeWidth: _handwritingStrokeWidth,
+        handwritingStyle: _handwritingStyle,
         isPro: _isPro,
       );
 
@@ -768,6 +770,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             _handwritingStrokes.map((s) => List<Offset>.from(s)).toList(),
         handwritingColor: _handwritingColor,
         handwritingStrokeWidth: _handwritingStrokeWidth,
+        handwritingStyle: _handwritingStyle,
       );
     }
 
@@ -933,6 +936,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 strokes: config.handwritingStrokes,
                 color: config.handwritingColor,
                 strokeWidth: config.handwritingStrokeWidth,
+                style: config.handwritingStyle,
                 preview: true,
               ),
             )
@@ -1820,87 +1824,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildHandwritingCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Handwriting',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: _handwritingStrokes.isEmpty
-                      ? null
-                      : () => setState(_handwritingStrokes.clear),
-                  icon: const Icon(Icons.backspace_outlined),
-                  label: const Text('Clear'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Write a name with your finger. Pro shows it large fullscreen.',
-              style: TextStyle(color: Colors.white70),
-            ),
-            const SizedBox(height: 12),
-            _buildHandwritingPad(),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () async {
-                      final color = await _pickColorDialog(context);
-                      if (color == null) return;
-                      setState(() => _handwritingColor = color);
-                    },
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _colorSwatch(_handwritingColor),
-                        const SizedBox(width: 10),
-                        const Text('Ink color'),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _labeledSlider(
-              'Stroke size',
-              _handwritingStrokeWidth,
-              4,
-              22,
-              (v) => setState(() => _handwritingStrokeWidth = v),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHandwritingPad() {
+  Widget _buildHandwritingPad({
+    required VoidCallback refresh,
+    double aspectRatio = 2.4,
+  }) {
     return AspectRatio(
-      aspectRatio: 2.4,
+      aspectRatio: aspectRatio,
       child: GestureDetector(
         onPanStart: (details) {
           setState(() {
             _handwritingStrokes.add([details.localPosition]);
           });
+          refresh();
         },
         onPanUpdate: (details) {
           if (_handwritingStrokes.isEmpty) return;
           setState(() {
             _handwritingStrokes.last.add(details.localPosition);
           });
+          refresh();
         },
         child: Container(
           decoration: BoxDecoration(
@@ -1921,10 +1863,163 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             strokes: _handwritingStrokes,
             color: _handwritingColor,
             strokeWidth: _handwritingStrokeWidth,
+            style: _handwritingStyle,
             preview: true,
           ),
         ),
       ),
+    );
+  }
+
+  String _handwritingStyleLabel(HandwritingStrokeStyle style) {
+    return switch (style) {
+      HandwritingStrokeStyle.smooth => 'Smooth',
+      HandwritingStrokeStyle.marker => 'Marker',
+      HandwritingStrokeStyle.neon => 'Neon',
+      HandwritingStrokeStyle.chalk => 'Chalk',
+    };
+  }
+
+  Future<void> _openHandwritingEditor() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0D1018),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, modalSetState) {
+            void update(VoidCallback fn) {
+              setState(fn);
+              modalSetState(() {});
+            }
+
+            return SingleChildScrollView(
+              padding: EdgeInsets.only(
+                left: 18,
+                right: 18,
+                top: 16,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 18,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.draw_outlined),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Handwriting',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 140,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withOpacity(0.55),
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: HandwritingSign(
+                      strokes: _handwritingStrokes,
+                      color: _handwritingColor,
+                      strokeWidth: _handwritingStrokeWidth,
+                      style: _handwritingStyle,
+                      preview: true,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _buildHandwritingPad(
+                    refresh: () => modalSetState(() {}),
+                    aspectRatio: 1.9,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _handwritingStrokes.isEmpty
+                              ? null
+                              : () => update(_handwritingStrokes.clear),
+                          icon: const Icon(Icons.backspace_outlined),
+                          label: const Text('Clear'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () async {
+                            final color = await _pickColorDialog(context);
+                            if (color == null) return;
+                            update(() => _handwritingColor = color);
+                          },
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _colorSwatch(_handwritingColor),
+                              const SizedBox(width: 10),
+                              const Text('Ink color'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<HandwritingStrokeStyle>(
+                    value: _handwritingStyle,
+                    decoration:
+                        const InputDecoration(labelText: 'Scribble style'),
+                    items: HandwritingStrokeStyle.values.map((style) {
+                      return DropdownMenuItem(
+                        value: style,
+                        child: Text(_handwritingStyleLabel(style)),
+                      );
+                    }).toList(),
+                    onChanged: (style) {
+                      if (style == null) return;
+                      update(() => _handwritingStyle = style);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _labeledSlider(
+                    'Line size',
+                    _handwritingStrokeWidth,
+                    4,
+                    22,
+                    (v) => update(() => _handwritingStrokeWidth = v),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 52,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Done'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -2014,8 +2109,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ),
                       ),
                       const SizedBox(height: 14),
-                      if (isHandwritingMode) _buildHandwritingCard(),
-                      if (isHandwritingMode) const SizedBox(height: 14),
+                      if (isHandwritingMode) ...[
+                        SizedBox(
+                          height: 54,
+                          child: FilledButton.icon(
+                            onPressed: _openHandwritingEditor,
+                            icon: const Icon(Icons.draw_outlined),
+                            label: const Text('Edit Handwriting'),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
                       if (isLogoMode)
                         Card(
                           child: Padding(

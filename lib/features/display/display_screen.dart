@@ -440,6 +440,7 @@ class _DisplayScreenState extends State<DisplayScreen>
                     strokes: c.handwritingStrokes,
                     color: c.handwritingColor,
                     strokeWidth: c.handwritingStrokeWidth,
+                    style: c.handwritingStyle,
                   )
                 : _buildText(c);
 
