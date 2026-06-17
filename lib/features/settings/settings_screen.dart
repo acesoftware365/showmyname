@@ -156,6 +156,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       AppThemeStyle.blue => 'Electric Blue',
       AppThemeStyle.pink => 'Hot Pink',
       AppThemeStyle.green => 'Lime Glow',
+      AppThemeStyle.sunset => 'Sunset Pop',
+      AppThemeStyle.aqua => 'Aqua Vibe',
+      AppThemeStyle.cherry => 'Cherry Bomb',
+      AppThemeStyle.lemon => 'Lemon Flash',
+      AppThemeStyle.cyber => 'Cyber Lime',
     };
   }
 
@@ -165,6 +170,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       AppThemeStyle.blue => const Color(0xFF2563EB),
       AppThemeStyle.pink => const Color(0xFFEC4899),
       AppThemeStyle.green => const Color(0xFF22C55E),
+      AppThemeStyle.sunset => const Color(0xFFFF5A5F),
+      AppThemeStyle.aqua => const Color(0xFF00D4FF),
+      AppThemeStyle.cherry => const Color(0xFFFF2D75),
+      AppThemeStyle.lemon => const Color(0xFFFACC15),
+      AppThemeStyle.cyber => const Color(0xFF39FF14),
     };
   }
 

@@ -11,6 +11,11 @@ enum AppThemeStyle {
   blue,
   pink,
   green,
+  sunset,
+  aqua,
+  cherry,
+  lemon,
+  cyber,
 }
 
 class AppController extends ChangeNotifier {
@@ -62,6 +67,11 @@ class AppController extends ChangeNotifier {
       AppThemeStyle.blue => const Color(0xFF2563EB),
       AppThemeStyle.pink => const Color(0xFFEC4899),
       AppThemeStyle.green => const Color(0xFF22C55E),
+      AppThemeStyle.sunset => const Color(0xFFFF5A5F),
+      AppThemeStyle.aqua => const Color(0xFF00D4FF),
+      AppThemeStyle.cherry => const Color(0xFFFF2D75),
+      AppThemeStyle.lemon => const Color(0xFFFACC15),
+      AppThemeStyle.cyber => const Color(0xFF39FF14),
     };
 
     return ThemeData.dark(useMaterial3: true).copyWith(
