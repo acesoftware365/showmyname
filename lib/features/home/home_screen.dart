@@ -10,6 +10,7 @@
 // - ✅ Adds AdMob TEST Banner at the bottom (FREE only) using AdBanner widget
 
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -90,6 +91,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // Pro
   bool _loading = false;
   bool _isPro = false;
+  StreamSubscription<bool>? _proSub;
 
   // ✅ ColorWave options
   bool _colorCycle = true; // false = single, true = cycle
@@ -164,6 +166,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     )..repeat();
 
     _loadState();
+    _proSub = SubscriptionManager.proStream.listen((isPro) {
+      if (!mounted) return;
+      setState(() => _isPro = isPro);
+    });
     _applyHomeMode(HomeMode.airport);
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowRotateTip());
@@ -1644,31 +1650,59 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildBrandTitle() {
     final accent = Theme.of(context).colorScheme.primary;
-    return RichText(
-      text: TextSpan(
-        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0,
-          shadows: const [
-            Shadow(color: Colors.black87, blurRadius: 4),
-          ],
-        ),
-        children: [
-          const TextSpan(
-            text: 'ShowMy',
-            style: TextStyle(color: Colors.white),
-          ),
-          TextSpan(
-            text: 'Name',
-            style: TextStyle(
-              color: accent,
-              shadows: [
-                Shadow(color: accent.withOpacity(0.65), blurRadius: 10),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: RichText(
+            overflow: TextOverflow.ellipsis,
+            text: TextSpan(
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+                shadows: const [
+                  Shadow(color: Colors.black87, blurRadius: 4),
+                ],
+              ),
+              children: [
+                const TextSpan(
+                  text: 'ShowMy',
+                  style: TextStyle(color: Colors.white),
+                ),
+                TextSpan(
+                  text: 'Name',
+                  style: TextStyle(
+                    color: accent,
+                    shadows: [
+                      Shadow(color: accent.withOpacity(0.65), blurRadius: 10),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          decoration: BoxDecoration(
+            color: (_isPro ? accent : Colors.white).withOpacity(0.14),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: _isPro ? accent.withOpacity(0.75) : Colors.white24,
+            ),
+          ),
+          child: Text(
+            _isPro ? 'PRO' : 'FREE',
+            style: TextStyle(
+              color: _isPro ? accent : Colors.white70,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1722,6 +1756,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _tipController.dispose();
     _wiggleController.dispose();
     _colorWavePreviewController.dispose();
+    _proSub?.cancel();
     _airportController.dispose();
     _eventController.dispose();
     super.dispose();

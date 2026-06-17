@@ -5,11 +5,14 @@
 // - No Paywall access
 // - Ads handled globally
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'; // ✅ Needed for RenderBox (popover anchor on iPad)
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/app_controller.dart';
 import '../../app/app_scope.dart';
@@ -53,11 +56,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final lang = locale?.languageCode ?? 'system';
     final preview = await SubscriptionManager.getPreviewOverride();
     final isPro = await SubscriptionManager.isPro();
+    var theme = controller.themeStyle;
+
+    if (!isPro && _isPremiumTheme(theme)) {
+      theme = AppThemeStyle.purple;
+      await controller.setThemeStyle(theme);
+    }
 
     if (!mounted) return;
     setState(() {
       _languageValue = lang;
-      _themeValue = controller.themeStyle;
+      _themeValue = theme;
       _planPreview = preview;
       _isPro = isPro;
       _loading = false;
@@ -81,6 +90,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _onThemeChanged(AppThemeStyle value) async {
+    if (_isPremiumTheme(value) && !_isPro) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Themes are included with Pro.')),
+      );
+      context.push('/paywall');
+      return;
+    }
+
     final controller = AppScope.read(context);
     setState(() => _themeValue = value);
     await controller.setThemeStyle(value);
@@ -97,6 +114,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final isPro = await SubscriptionManager.isPro();
     if (!mounted) return;
     setState(() => _isPro = isPro);
+    if (!isPro && _isPremiumTheme(_themeValue)) {
+      final controller = AppScope.read(context);
+      await controller.setThemeStyle(AppThemeStyle.purple);
+      if (!mounted) return;
+      setState(() => _themeValue = AppThemeStyle.purple);
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -108,6 +131,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  bool _isPremiumTheme(AppThemeStyle style) => style != AppThemeStyle.purple;
+
+  Future<void> _manageSubscription() async {
+    final uri = Platform.isIOS
+        ? Uri.parse('https://apps.apple.com/account/subscriptions')
+        : Uri.parse(
+            'https://play.google.com/store/account/subscriptions?package=com.liisgo.showmyname',
+          );
+
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open subscription settings.')),
+      );
+    }
   }
 
   String _themeLabel(AppThemeStyle style) {
@@ -305,7 +345,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                             ),
                             const SizedBox(width: 10),
-                            Text(_themeLabel(style)),
+                            Expanded(child: Text(_themeLabel(style))),
+                            if (_isPremiumTheme(style)) ...[
+                              const SizedBox(width: 8),
+                              Icon(
+                                _isPro ? Icons.workspace_premium : Icons.lock,
+                                size: 16,
+                                color: _isPro
+                                    ? _themeColor(style)
+                                    : Colors.white54,
+                              ),
+                            ],
                           ],
                         ),
                       );
@@ -316,7 +366,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Changes the accent color across buttons, controls, and the ShowMyName logo.',
+                    'Purple Neon is free. Extra themes are included with Pro.',
                     style: TextStyle(color: Colors.white70),
                   ),
                 ],
@@ -385,6 +435,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const Text(
                     'Use Free and Pro here to preview how the app looks before store purchases are live.',
                     style: TextStyle(color: Colors.white60, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _manageSubscription,
+                          icon: const Icon(Icons.open_in_new),
+                          label: const Text('Cancel / manage plan'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => context.push('/terms'),
+                          icon: const Icon(Icons.description_outlined),
+                          label: const Text('Terms'),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

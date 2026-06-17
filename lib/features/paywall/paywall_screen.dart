@@ -1,8 +1,11 @@
 // Path: lib/features/paywall/paywall_screen.dart
 // Description: Premium Pro paywall with Free vs Pro comparison.
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../services/subscription/subscription_manager.dart';
@@ -75,6 +78,21 @@ class _PaywallScreenState extends State<PaywallScreen> {
   String _priceFor(String id, String fallback) {
     final product = SubscriptionManager.productById(id);
     return product?.price ?? fallback;
+  }
+
+  Future<void> _manageSubscription() async {
+    final uri = Platform.isIOS
+        ? Uri.parse('https://apps.apple.com/account/subscriptions')
+        : Uri.parse(
+            'https://play.google.com/store/account/subscriptions?package=com.liisgo.showmyname',
+          );
+
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open subscription settings.')),
+      );
+    }
   }
 
   @override
@@ -202,6 +220,25 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   TextButton(
                     onPressed: _busy ? null : _restore,
                     child: Text(t.restorePurchases),
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _manageSubscription,
+                          icon: const Icon(Icons.open_in_new),
+                          label: const Text('Cancel / manage plan'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => context.push('/terms'),
+                          icon: const Icon(Icons.description_outlined),
+                          label: const Text('Terms'),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Text(
