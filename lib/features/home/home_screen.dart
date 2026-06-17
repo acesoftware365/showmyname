@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../ads/rewarded_ad_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/sign_config.dart';
 import '../../models/sign_mode.dart';
@@ -30,6 +31,34 @@ class HomeScreen extends StatefulWidget {
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _UnlockLine extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _UnlockLine({
+    required this.icon,
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: accent),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(color: Colors.white70, height: 1.28),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
@@ -99,6 +128,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _loading = false;
   bool _isPro = false;
   StreamSubscription<bool>? _proSub;
+  final Set<String> _rewardUnlockedFeatures = <String>{};
 
   // ✅ ColorWave options
   bool _colorCycle = true; // false = single, true = cycle
@@ -362,14 +392,32 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _applyHomeMode(HomeMode m) {
-    if (m == HomeMode.handwriting && !_isPro) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Handwriting is included with Pro.')),
-      );
-      context.push('/paywall').then((_) => _loadState());
-      return;
+  Future<void> _applyHomeMode(HomeMode m) async {
+    if (m != HomeMode.handwriting) {
+      _rewardUnlockedFeatures.remove('handwriting');
     }
+
+    if (m == HomeMode.handwriting &&
+        !_isPro &&
+        !_rewardUnlockedFeatures.contains('handwriting')) {
+      final unlocked = await _showRewardUnlockSheet(
+        title: 'Unlock Handwriting',
+        featureName: 'Handwriting',
+        description:
+            'Write a name with your finger and show it large fullscreen.',
+      );
+      if (!unlocked) return;
+      _rewardUnlockedFeatures.add('handwriting');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text('Handwriting unlocked once. Upgrade for unlimited use.'),
+        ),
+      );
+    }
+
+    if (!mounted) return;
 
     setState(() {
       _homeMode = m;
@@ -411,6 +459,132 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _mode = SignUsageMode.concert;
       _type = SignType.colorOnly;
     });
+  }
+
+  Future<bool> _showRewardUnlockSheet({
+    required String title,
+    required String featureName,
+    required String description,
+  }) async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF0D1018),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        final accent = Theme.of(ctx).colorScheme.primary;
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: accent.withOpacity(0.18),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.workspace_premium, color: accent),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: Theme.of(ctx)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx, 'cancel'),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  description,
+                  style: const TextStyle(color: Colors.white70, height: 1.35),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.055),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.white.withOpacity(0.10)),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _UnlockLine(
+                        icon: Icons.play_circle_outline,
+                        text: 'Watch one ad to use this feature once.',
+                      ),
+                      SizedBox(height: 10),
+                      _UnlockLine(
+                        icon: Icons.all_inclusive,
+                        text: 'Go Pro for unlimited access and no ads.',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 52,
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.pop(ctx, 'ad'),
+                    icon: const Icon(Icons.ondemand_video_outlined),
+                    label: Text('Watch ad to use $featureName once'),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.pop(ctx, 'pro'),
+                    icon: const Icon(Icons.workspace_premium_outlined),
+                    label: const Text('See Pro plans'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted) return false;
+    if (result == 'pro') {
+      await context.push('/paywall');
+      await _loadState();
+      return await SubscriptionManager.isPro();
+    }
+    if (result != 'ad') return false;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    final unlocked = await RewardedAdService.instance.showOnce();
+    if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    if (!mounted) return false;
+
+    if (!unlocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ad was not completed. Try again.')),
+      );
+    }
+    return unlocked;
   }
 
   Future<Color?> _pickColorDialog(BuildContext context) async {
