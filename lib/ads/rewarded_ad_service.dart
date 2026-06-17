@@ -10,11 +10,11 @@ class RewardedAdService {
   static final RewardedAdService instance = RewardedAdService._();
   static const String _androidReleaseUnitId = String.fromEnvironment(
     'SHOWMYNAME_REWARDED_ANDROID',
-    defaultValue: '',
+    defaultValue: 'ca-app-pub-8588489900323524/8044514697',
   );
   static const String _iosReleaseUnitId = String.fromEnvironment(
     'SHOWMYNAME_REWARDED_IOS',
-    defaultValue: '',
+    defaultValue: 'ca-app-pub-8588489900323524/9277705315',
   );
 
   static String get unitId {
