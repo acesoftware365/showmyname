@@ -233,3 +233,11 @@ Important:
 
 - No app code can guarantee AdMob match rate stays high. Match rate also depends on country, demand, consent, policies, and ad inventory.
 - This system reduces unnecessary requests, which is the safest lever inside the app.
+
+## Theme Accent Cleanup
+
+Added for version 1.0.16+21.
+
+- Live preview border and glow now use the selected app theme color instead of fixed purple.
+- Section card icon accents now use the selected app theme color.
+- LED Dot Matrix panel border glow now follows the active LED color instead of a hard-coded purple edge.

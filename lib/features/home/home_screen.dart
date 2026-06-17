@@ -990,6 +990,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     required String title,
     required Widget child,
   }) {
+    final accent = Theme.of(context).colorScheme.primary;
     return Card(
       color: const Color(0xFF11131C).withOpacity(0.92),
       shape: RoundedRectangleBorder(
@@ -1005,8 +1006,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundColor: const Color(0xFF7C3AED).withOpacity(0.35),
-                  child: Icon(icon, size: 19, color: const Color(0xFFE9D5FF)),
+                  backgroundColor: accent.withOpacity(0.28),
+                  child: Icon(
+                    icon,
+                    size: 19,
+                    color: Color.lerp(Colors.white, accent, 0.28),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Text(title, style: Theme.of(context).textTheme.titleMedium),
@@ -1065,15 +1070,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildLivePreview(AppLocalizations t, {double height = 190}) {
     final config = _previewConfig();
+    final accent = Theme.of(context).colorScheme.primary;
     return Container(
       height: height,
       decoration: BoxDecoration(
         color: config.backgroundColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFB56CFF).withOpacity(0.55)),
+        border: Border.all(color: accent.withOpacity(0.58)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF8B5CF6).withOpacity(0.35),
+            color: accent.withOpacity(0.34),
             blurRadius: 28,
             spreadRadius: 1,
           ),
@@ -1253,8 +1259,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.visibility_outlined,
-                            color: Color(0xFFE9D5FF)),
+                        Icon(
+                          Icons.visibility_outlined,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                         const SizedBox(width: 10),
                         Text('Preview & tune',
                             style: Theme.of(context).textTheme.titleLarge),

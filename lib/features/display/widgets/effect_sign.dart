@@ -380,7 +380,7 @@ class _LedMatrixPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.6
-        ..color = const Color(0xFFB56CFF).withOpacity(0.55 + 0.35 * glow)
+        ..color = color.withOpacity(0.55 + 0.35 * glow)
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8 + 16 * glow),
     );
     canvas.drawRRect(
@@ -388,7 +388,7 @@ class _LedMatrixPainter extends CustomPainter {
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2
-        ..color = const Color(0xFFD9B7FF).withOpacity(0.55),
+        ..color = Color.lerp(Colors.white, color, 0.42)!.withOpacity(0.55),
     );
 
     canvas.save();
