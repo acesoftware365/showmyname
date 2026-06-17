@@ -1,0 +1,106 @@
+reviewer.free@showmyname.app / ShowMyName123!
+reviewer.pro@showmyname.app / ShowMyName123!
+
+
+
+// Path: lib/routing/app_router.dart
+// Description: GoRouter configuration used by MaterialApp.router (main.dart).
+// Adds route NAMES so pushNamed/goNamed works (fixes: unknown route name: settings).
+// Routes:
+// - name: home     path: /
+// - name: display  path: /display (expects SignConfig in state.extra)
+// - name: settings path: /settings
+// - name: privacy  path: /privacy
+// - name: logo     path: /logo
+// - name: paywall  path: /paywall
+
+import 'package:go_router/go_router.dart';
+
+import '../features/home/home_screen.dart';
+import '../features/display/display_screen.dart';
+import '../features/settings/settings_screen.dart';
+import '../features/privacy/privacy_screen.dart';
+import '../features/logo/logo_screen.dart';
+import '../features/paywall/paywall_screen.dart';
+import '../models/sign_config.dart';
+
+class AppRouter {
+  static final GoRouter router = GoRouter(
+    initialLocation: '/',
+    routes: [
+      GoRoute(
+        name: 'home',
+        path: '/',
+        builder: (context, state) => const HomeScreen(),
+      ),
+
+      GoRoute(
+        name: 'display',
+        path: '/display',
+        builder: (context, state) {
+          final extra = state.extra;
+          if (extra is SignConfig) {
+            return DisplayScreen(config: extra);
+          }
+          return const HomeScreen();
+        },
+      ),
+
+      GoRoute(
+        name: 'settings',
+        path: '/settings',
+        builder: (context, state) => const SettingsScreen(),
+      ),
+
+      GoRoute(
+        name: 'privacy',
+        path: '/privacy',
+        builder: (context, state) => const PrivacyScreen(),
+      ),
+
+      GoRoute(
+        name: 'logo',
+        path: '/logo',
+        builder: (context, state) => const LogoScreen(),
+      ),
+
+      GoRoute(
+        name: 'paywall',
+        path: '/paywall',
+        builder: (context, state) => const PaywallScreen(),
+      ),
+    ],
+  );
+}
+
+
+
+// Path: lib/features/display/widgets/free_banner_shell.dart
+// Descripción: Banner visible solo en versión FREE
+
+import 'package:flutter/material.dart';
+
+class FreeBannerShell extends StatelessWidget {
+  const FreeBannerShell({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 12,
+      right: 12,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.45),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: const Text(
+          'ShowMyName FREE',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+}
+

@@ -1,0 +1,6 @@
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
+#include "Generated.xcconfig"
+
+// Keep Apple Silicon simulators selectable even when Flutter regenerates
+// Generated.xcconfig with arm64 excluded.
+EXCLUDED_ARCHS[sdk=iphonesimulator*]=i386
