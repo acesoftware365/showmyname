@@ -1,11 +1,5 @@
 // Path: lib/features/home/widgets/mode_selector.dart
-// Description: 4-button selector for Airport vs Event vs ColorWave vs Logo preset.
-// UI Fix:
-// - On small portrait screens, show icon TOP + text BOTTOM (vertical)
-// - On normal/landscape/tablet, keep the current horizontal layout
-// - ✅ Remove the checkmark icon entirely (no ✓)
-// - ✅ Selection is indicated ONLY by color (Material handles it)
-// - Logic unchanged (HomeMode + onChanged)
+// Description: Premium horizontal mode selector.
 
 import 'package:flutter/material.dart';
 
@@ -38,139 +32,130 @@ class ModeSelector extends StatelessWidget {
     required this.logoLabel,
   });
 
-  bool _useVerticalLayout(BuildContext context) {
-    final mq = MediaQuery.of(context);
-
-    // ✅ iPhone 13 mini / SE / 16e portrait widths are around 375–393 logical px.
-    // Safer threshold so it actually triggers.
-    final isPortrait = mq.orientation == Orientation.portrait;
-    final isNarrow = mq.size.width <= 600; // 430
-    return isPortrait && isNarrow;
-  }
-
   bool _isTablet(BuildContext context) {
-    final shortestSide = MediaQuery.of(context).size.shortestSide;
-    return shortestSide >= 700;
-  }
-
-  Widget _verticalLabel(IconData icon, String text, {required bool tablet}) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: tablet ? 6 : 2),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: tablet ? 24 : 16),
-          SizedBox(height: tablet ? 6 : 3),
-          Text(
-            text,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            softWrap: true,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: tablet ? 16 : 11, height: 1.05),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _horizontalText(String text, {required bool tablet}) {
-    return Text(
-      text,
-      textAlign: TextAlign.center,
-      maxLines: 2,
-      softWrap: true,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        fontSize: tablet ? 16 : null,
-        fontWeight: tablet ? FontWeight.w700 : null,
-      ),
-    );
+    return MediaQuery.of(context).size.shortestSide >= 700;
   }
 
   @override
   Widget build(BuildContext context) {
-    final vertical = _useVerticalLayout(context);
     final tablet = _isTablet(context);
-    final iconSize = tablet ? 24.0 : null;
+    final items = [
+      _ModeItem(HomeMode.airport, Icons.flight_takeoff, airportLabel),
+      _ModeItem(HomeMode.event, Icons.mic_none, eventLabel),
+      _ModeItem(HomeMode.colorWave, Icons.palette_outlined, colorWaveLabel),
+      _ModeItem(HomeMode.handwriting, Icons.draw_outlined, handwritingLabel),
+      _ModeItem(HomeMode.logo, Icons.image_outlined, logoLabel),
+    ];
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth),
-            child: SegmentedButton<HomeMode>(
-              // ✅ Remove the default selected check icon
-              showSelectedIcon: false,
-              style: ButtonStyle(
-                minimumSize:
-                    WidgetStatePropertyAll(Size.fromHeight(tablet ? 64 : 48)),
-                padding: WidgetStatePropertyAll(
-                  EdgeInsets.symmetric(
-                    horizontal: tablet ? 20 : 10,
-                    vertical: tablet ? 16 : 10,
+    return SizedBox(
+      height: tablet ? 92 : 78,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => SizedBox(width: tablet ? 12 : 8),
+        itemBuilder: (context, index) {
+          final item = items[index];
+          return _ModePill(
+            selected: item.mode == value,
+            icon: item.icon,
+            label: item.label,
+            tablet: tablet,
+            onTap: () => onChanged(item.mode),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ModeItem {
+  final HomeMode mode;
+  final IconData icon;
+  final String label;
+
+  const _ModeItem(this.mode, this.icon, this.label);
+}
+
+class _ModePill extends StatelessWidget {
+  final bool selected;
+  final IconData icon;
+  final String label;
+  final bool tablet;
+  final VoidCallback onTap;
+
+  const _ModePill({
+    required this.selected,
+    required this.icon,
+    required this.label,
+    required this.tablet,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final width = tablet ? 142.0 : 104.0;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: width,
+      decoration: BoxDecoration(
+        color: selected
+            ? accent.withOpacity(0.28)
+            : Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: selected
+              ? accent.withOpacity(0.95)
+              : Colors.white.withOpacity(0.12),
+          width: selected ? 1.4 : 1,
+        ),
+        boxShadow: [
+          if (selected)
+            BoxShadow(
+              color: accent.withOpacity(0.32),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onTap,
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: tablet ? 12 : 8,
+              vertical: tablet ? 12 : 9,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: tablet ? 26 : 20,
+                  color: selected ? Colors.white : Colors.white70,
+                ),
+                SizedBox(height: tablet ? 7 : 5),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selected ? Colors.white : Colors.white70,
+                    fontSize: tablet ? 15 : 11,
+                    height: 1.05,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                   ),
                 ),
-              ),
-
-              segments: [
-                ButtonSegment(
-                  value: HomeMode.airport,
-                  // In vertical mode, put icon INSIDE label (top), so icon param must be null.
-                  icon: vertical
-                      ? null
-                      : Icon(Icons.flight_takeoff, size: iconSize),
-                  label: vertical
-                      ? _verticalLabel(Icons.flight_takeoff, airportLabel,
-                          tablet: tablet)
-                      : _horizontalText(airportLabel, tablet: tablet),
-                ),
-                ButtonSegment(
-                  value: HomeMode.event,
-                  icon: vertical ? null : Icon(Icons.mic_none, size: iconSize),
-                  label: vertical
-                      ? _verticalLabel(Icons.mic_none, eventLabel,
-                          tablet: tablet)
-                      : _horizontalText(eventLabel, tablet: tablet),
-                ),
-                ButtonSegment(
-                  value: HomeMode.colorWave,
-                  icon: vertical
-                      ? null
-                      : Icon(Icons.palette_outlined, size: iconSize),
-                  label: vertical
-                      ? _verticalLabel(Icons.palette_outlined, colorWaveLabel,
-                          tablet: tablet)
-                      : _horizontalText(colorWaveLabel, tablet: tablet),
-                ),
-                ButtonSegment(
-                  value: HomeMode.handwriting,
-                  icon: vertical
-                      ? null
-                      : Icon(Icons.draw_outlined, size: iconSize),
-                  label: vertical
-                      ? _verticalLabel(Icons.draw_outlined, handwritingLabel,
-                          tablet: tablet)
-                      : _horizontalText(handwritingLabel, tablet: tablet),
-                ),
-                ButtonSegment(
-                  value: HomeMode.logo,
-                  icon: vertical
-                      ? null
-                      : Icon(Icons.image_outlined, size: iconSize),
-                  label: vertical
-                      ? _verticalLabel(Icons.image_outlined, logoLabel,
-                          tablet: tablet)
-                      : _horizontalText(logoLabel, tablet: tablet),
-                ),
               ],
-              selected: {value},
-              onSelectionChanged: (s) => onChanged(s.first),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
