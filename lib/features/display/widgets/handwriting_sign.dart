@@ -8,6 +8,7 @@ class HandwritingSign extends StatelessWidget {
   final double strokeWidth;
   final HandwritingStrokeStyle style;
   final bool preview;
+  final String emptyLabel;
 
   const HandwritingSign({
     super.key,
@@ -16,6 +17,7 @@ class HandwritingSign extends StatelessWidget {
     required this.strokeWidth,
     this.style = HandwritingStrokeStyle.smooth,
     this.preview = false,
+    this.emptyLabel = 'Write a name',
   });
 
   @override
@@ -31,7 +33,7 @@ class HandwritingSign extends StatelessWidget {
       child: strokes.isEmpty
           ? Center(
               child: Text(
-                'Write a name',
+                emptyLabel,
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.34),
                   fontWeight: FontWeight.w800,
