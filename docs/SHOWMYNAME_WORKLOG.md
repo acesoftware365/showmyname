@@ -272,3 +272,11 @@ Added for version 1.0.19+24.
   - Monthly subscription: `showmyname_pro_monthly`, Apple ID `6781517059`, 1 month, $0.99, all countries/regions, English (U.S.) localization, status `Prepare for Submission` / pending review metadata.
   - Yearly subscription: `showmyname_pro_yearly`, Apple ID `6781519229`, 1 year, $9.99, all countries/regions, English (U.S.) localization, status `Prepare for Submission` / pending review metadata.
 - App Store subscriptions still require review screenshot/review metadata and must be attached to a new app version before they can be approved/live.
+
+## Marquee Direction Control
+
+Added for version 1.0.20+25.
+
+- Concert / Event Marquee now shows a Direction segmented control inside the simplified Preview & tune popup.
+- Left sends the marquee text right-to-left.
+- Right sends the marquee text left-to-right.
