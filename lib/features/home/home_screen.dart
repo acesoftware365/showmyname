@@ -1583,27 +1583,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           (v) => update(() => _eventFontScale = v)),
       _labeledSlider('Speed', _marqueeSpeed, 20, 200,
           (v) => update(() => _marqueeSpeed = v)),
-      const SizedBox(height: 8),
-      Text('Direction', style: Theme.of(context).textTheme.titleSmall),
-      const SizedBox(height: 8),
-      SizedBox(
-        width: double.infinity,
-        child: SegmentedButton<MotionDirection>(
-          segments: const [
-            ButtonSegment(
-              value: MotionDirection.rightToLeft,
-              label: Text('Left'),
-            ),
-            ButtonSegment(
-              value: MotionDirection.leftToRight,
-              label: Text('Right'),
-            ),
-          ],
-          selected: {_marqueeDirection},
-          onSelectionChanged: (s) =>
-              update(() => _marqueeDirection = s.first),
-        ),
-      ),
     ];
   }
 

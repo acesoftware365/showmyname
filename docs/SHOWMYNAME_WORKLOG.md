@@ -280,3 +280,10 @@ Added for version 1.0.20+25.
 - Concert / Event Marquee now shows a Direction segmented control inside the simplified Preview & tune popup.
 - Left sends the marquee text right-to-left.
 - Right sends the marquee text left-to-right.
+
+## Restore Marquee Popup Simplicity
+
+Added for version 1.0.21+26.
+
+- Removed the new Direction control from the simplified Marquee popup and restored it to the previous controls: text size and speed only.
+- The older internal marquee direction setting remains in code, but it is not shown in the simplified popup.
