@@ -876,11 +876,35 @@ abstract class AppLocalizations {
   /// **'Loading…'**
   String get priceLoading;
 
+  /// No description provided for @managePlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage'**
+  String get managePlan;
+
+  /// No description provided for @termsShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms'**
+  String get termsShort;
+
   /// No description provided for @subLegal.
   ///
   /// In en, this message translates to:
   /// **'Payment will be charged to your Apple ID or Google account. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. You can manage or cancel your subscription in your account settings.'**
   String get subLegal;
+
+  /// No description provided for @subLegalApple.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment will be charged to your Apple ID. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. You can manage or cancel your subscription in Apple account settings.'**
+  String get subLegalApple;
+
+  /// No description provided for @subLegalGoogle.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment will be charged to your Google Play account. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. You can manage or cancel your subscription in Google Play subscription settings.'**
+  String get subLegalGoogle;
 
   /// No description provided for @languageFrench.
   ///

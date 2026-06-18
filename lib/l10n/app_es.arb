@@ -127,7 +127,11 @@
   "monthlyPlan": "Mensual",
   "yearlyPlan": "Anual (Mejor opción)",
   "priceLoading": "Cargando…",
+  "managePlan": "Gestionar",
+  "termsShort": "Términos",
   "subLegal": "El pago se cargará a tu cuenta de Apple o Google. La suscripción se renueva automáticamente a menos que se cancele al menos 24 horas antes del final del período actual. Puedes administrar o cancelar la suscripción desde la configuración de tu cuenta.",
+  "subLegalApple": "El pago se cargará a tu cuenta de Apple. La suscripción se renueva automáticamente a menos que se cancele al menos 24 horas antes del final del período actual. Puedes administrar o cancelar la suscripción desde la configuración de tu cuenta de Apple.",
+  "subLegalGoogle": "El pago se cargará a tu cuenta de Google Play. La suscripción se renueva automáticamente a menos que se cancele al menos 24 horas antes del final del período actual. Puedes administrar o cancelar la suscripción desde la configuración de suscripciones de Google Play.",
   "colorsSection": "Colores",
   "textColor": "Color del texto",
   "backgroundColor": "Color de fondo"

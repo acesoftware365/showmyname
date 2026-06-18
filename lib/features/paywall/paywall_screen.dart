@@ -80,6 +80,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
     return product?.price ?? fallback;
   }
 
+  String _subscriptionLegalText(AppLocalizations t) {
+    if (Platform.isIOS) return t.subLegalApple;
+    if (Platform.isAndroid) return t.subLegalGoogle;
+    return t.subLegal;
+  }
+
   Future<void> _manageSubscription() async {
     final uri = Platform.isIOS
         ? Uri.parse('https://apps.apple.com/account/subscriptions')
@@ -232,7 +238,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         child: OutlinedButton.icon(
                           onPressed: _manageSubscription,
                           icon: const Icon(Icons.open_in_new),
-                          label: const Text('Cancel / manage plan'),
+                          label: Text(t.managePlan),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -240,14 +246,14 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         child: OutlinedButton.icon(
                           onPressed: () => context.push('/terms'),
                           icon: const Icon(Icons.description_outlined),
-                          label: const Text('Terms'),
+                          label: Text(t.termsShort),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    t.subLegal,
+                    _subscriptionLegalText(t),
                     textAlign: TextAlign.center,
                     style: Theme.of(context)
                         .textTheme

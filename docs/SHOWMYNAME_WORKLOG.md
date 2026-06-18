@@ -238,6 +238,19 @@ Important:
 
 Added for version 1.0.16+21.
 
+## Paywall Store Text Cleanup
+
+Added for version 1.0.26+31.
+
+Behavior:
+
+- The paywall manage button was shortened so it does not wrap awkwardly on small phones.
+- The terms button now uses a short localized label.
+- The subscription legal copy is platform-specific:
+  - iOS mentions Apple only.
+  - Android mentions Google Play only.
+  - Other platforms keep the generic fallback text.
+
 - Live preview border and glow now use the selected app theme color instead of fixed purple.
 - Section card icon accents now use the selected app theme color.
 - LED Dot Matrix panel border glow now follows the active LED color instead of a hard-coded purple edge.

@@ -397,8 +397,22 @@ class AppLocalizationsDe extends AppLocalizations {
   String get priceLoading => 'Preis wird geladen…';
 
   @override
+  String get managePlan => 'Manage';
+
+  @override
+  String get termsShort => 'Terms';
+
+  @override
   String get subLegal =>
       'Die Zahlung wird über Ihre Apple‑ID oder Ihr Google‑Konto abgerechnet. Das Abo verlängert sich automatisch, sofern es nicht mindestens 24 Stunden vor Ablauf des aktuellen Zeitraums gekündigt wird. Sie können Ihr Abo in den Kontoeinstellungen verwalten oder kündigen.';
+
+  @override
+  String get subLegalApple =>
+      'Payment will be charged to your Apple ID. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. You can manage or cancel your subscription in Apple account settings.';
+
+  @override
+  String get subLegalGoogle =>
+      'Payment will be charged to your Google Play account. Subscription automatically renews unless canceled at least 24 hours before the end of the current period. You can manage or cancel your subscription in Google Play subscription settings.';
 
   @override
   String get languageFrench => 'Französisch';

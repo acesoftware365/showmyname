@@ -400,8 +400,22 @@ class AppLocalizationsEs extends AppLocalizations {
   String get priceLoading => 'Cargando…';
 
   @override
+  String get managePlan => 'Gestionar';
+
+  @override
+  String get termsShort => 'Términos';
+
+  @override
   String get subLegal =>
       'El pago se cargará a tu cuenta de Apple o Google. La suscripción se renueva automáticamente a menos que se cancele al menos 24 horas antes del final del período actual. Puedes administrar o cancelar la suscripción desde la configuración de tu cuenta.';
+
+  @override
+  String get subLegalApple =>
+      'El pago se cargará a tu cuenta de Apple. La suscripción se renueva automáticamente a menos que se cancele al menos 24 horas antes del final del período actual. Puedes administrar o cancelar la suscripción desde la configuración de tu cuenta de Apple.';
+
+  @override
+  String get subLegalGoogle =>
+      'El pago se cargará a tu cuenta de Google Play. La suscripción se renueva automáticamente a menos que se cancele al menos 24 horas antes del final del período actual. Puedes administrar o cancelar la suscripción desde la configuración de suscripciones de Google Play.';
 
   @override
   String get languageFrench => 'French';
