@@ -237,7 +237,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: _manageSubscription,
-                          icon: const Icon(Icons.open_in_new),
+                          icon: const Icon(Icons.cancel_outlined),
                           label: Text(t.managePlan),
                         ),
                       ),
