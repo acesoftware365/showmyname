@@ -183,7 +183,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                             pro: true,
                           ),
                           _CompareRow(
-                            feature: 'Basic ColorWave',
+                            feature: 'Logo fullscreen',
                             free: true,
                             pro: true,
                           ),
@@ -198,7 +198,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
                             pro: true,
                           ),
                           _CompareRow(
-                            feature: 'Multiple logo images',
+                            feature: 'ColorWave effects',
+                            free: false,
+                            pro: true,
+                          ),
+                          _CompareRow(
+                            feature: 'Handwriting mode',
                             free: false,
                             pro: true,
                           ),

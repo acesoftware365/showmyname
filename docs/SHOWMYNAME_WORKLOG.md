@@ -241,3 +241,13 @@ Added for version 1.0.16+21.
 - Live preview border and glow now use the selected app theme color instead of fixed purple.
 - Section card icon accents now use the selected app theme color.
 - LED Dot Matrix panel border glow now follows the active LED color instead of a hard-coded purple edge.
+
+## Free / Rewarded Feature Gate
+
+Added for version 1.0.17+22.
+
+- Free users can open Airport / Pickup and Logo without a rewarded ad.
+- Concert / Event, ColorWave, and Handwriting use the rewarded unlock sheet.
+- Watching a rewarded ad unlocks the selected mode once; Pro keeps unlimited access.
+- Rewarded ads now force one load attempt when the user taps "Watch ad" so the flow does not depend only on background preloading.
+- Paywall comparison was updated so ColorWave is no longer shown as a Free feature.

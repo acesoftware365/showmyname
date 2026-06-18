@@ -397,26 +397,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _applyHomeMode(HomeMode m) async {
-    if (m != HomeMode.handwriting) {
-      _rewardUnlockedFeatures.remove('handwriting');
-    }
+    final gatedFeature = _gatedFeatureForMode(m);
+    _rewardUnlockedFeatures.removeWhere((feature) => feature != gatedFeature);
 
-    if (m == HomeMode.handwriting &&
+    if (gatedFeature != null &&
         !_isPro &&
-        !_rewardUnlockedFeatures.contains('handwriting')) {
+        !_rewardUnlockedFeatures.contains(gatedFeature)) {
       final unlocked = await _showRewardUnlockSheet(
-        title: 'Unlock Handwriting',
-        featureName: 'Handwriting',
-        description:
-            'Write a name with your finger and show it large fullscreen.',
+        title: 'Unlock ${_featureNameForMode(m)}',
+        featureName: _featureNameForMode(m),
+        description: _featureDescriptionForMode(m),
       );
       if (!unlocked) return;
-      _rewardUnlockedFeatures.add('handwriting');
+      _rewardUnlockedFeatures.add(gatedFeature);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content:
-              Text('Handwriting unlocked once. Upgrade for unlimited use.'),
+        SnackBar(
+          content: Text(
+            '${_featureNameForMode(m)} unlocked once. Upgrade for unlimited use.',
+          ),
         ),
       );
     }
@@ -463,6 +462,38 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _mode = SignUsageMode.concert;
       _type = SignType.colorOnly;
     });
+  }
+
+  String? _gatedFeatureForMode(HomeMode mode) {
+    return switch (mode) {
+      HomeMode.event => 'concert',
+      HomeMode.colorWave => 'colorwave',
+      HomeMode.handwriting => 'handwriting',
+      HomeMode.airport || HomeMode.logo => null,
+    };
+  }
+
+  String _featureNameForMode(HomeMode mode) {
+    return switch (mode) {
+      HomeMode.event => 'Concert / Event',
+      HomeMode.colorWave => 'ColorWave',
+      HomeMode.handwriting => 'Handwriting',
+      HomeMode.airport => 'Airport / Pickup',
+      HomeMode.logo => 'Logo',
+    };
+  }
+
+  String _featureDescriptionForMode(HomeMode mode) {
+    return switch (mode) {
+      HomeMode.event =>
+        'Use concert styles like LED Dot Matrix, Neon Glow, Pulse, Marquee, and Wave.',
+      HomeMode.colorWave =>
+        'Show a fullscreen color effect for events, parties, and attention-grabbing signs.',
+      HomeMode.handwriting =>
+        'Write a name with your finger and show it large fullscreen.',
+      HomeMode.airport => 'Create a clean readable pickup sign.',
+      HomeMode.logo => 'Show a saved logo fullscreen.',
+    };
   }
 
   Future<bool> _showRewardUnlockSheet({

@@ -123,7 +123,7 @@ class RewardedAdService {
     if (_showing) return false;
 
     if (!isReady) {
-      await preload();
+      await preload(force: true);
     }
 
     final ad = _cachedAd;
