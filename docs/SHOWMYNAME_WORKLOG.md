@@ -287,3 +287,9 @@ Added for version 1.0.21+26.
 
 - Removed the new Direction control from the simplified Marquee popup and restored it to the previous controls: text size and speed only.
 - The older internal marquee direction setting remains in code, but it is not shown in the simplified popup.
+
+## Terms Screen Cleanup
+
+Added for version 1.0.22+27.
+
+- Removed the visible starter-template legal note from the Terms screen.

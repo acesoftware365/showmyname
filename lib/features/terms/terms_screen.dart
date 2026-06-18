@@ -77,11 +77,6 @@ class TermsScreen extends StatelessWidget {
                   title: 'Contact',
                   body: 'Questions? Contact us at sales@liisgo.com.',
                 ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Note: These Terms are a starter template and should be reviewed by a qualified legal professional before publishing paid features.',
-                  style: TextStyle(color: Colors.white54, fontSize: 13),
-                ),
               ],
             );
           },
