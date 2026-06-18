@@ -300,3 +300,16 @@ Added for version 1.0.23+28.
 
 - Fixed a Settings screen layout crash caused by an expanded Theme dropdown row inside an unbounded menu item.
 - Simplified Settings again by removing the temporary Plan preview card from the screen while keeping Language, Theme, Privacy, Terms, and About.
+
+## Spanish Mode Selector Overflow Fix
+
+Added for version 1.0.24+29.
+
+- Increased the Home mode selector pill height so Spanish two-line labels fit without bottom overflow.
+
+## Settings Localization Fix
+
+Added for version 1.0.25+30.
+
+- Localized Settings theme labels, theme helper text, theme snackbars, and Terms & Conditions row.
+- Settings now updates those labels when the app language changes.

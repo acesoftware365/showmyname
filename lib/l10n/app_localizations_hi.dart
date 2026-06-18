@@ -213,6 +213,49 @@ class AppLocalizationsHi extends AppLocalizations {
   String get settings => 'सेटिंग्स';
 
   @override
+  String get theme => 'Theme';
+
+  @override
+  String get themePurpleNeon => 'Purple Neon';
+
+  @override
+  String get themeElectricBlue => 'Electric Blue';
+
+  @override
+  String get themeHotPink => 'Hot Pink';
+
+  @override
+  String get themeLimeGlow => 'Lime Glow';
+
+  @override
+  String get themeSunsetPop => 'Sunset Pop';
+
+  @override
+  String get themeAquaVibe => 'Aqua Vibe';
+
+  @override
+  String get themeCherryBomb => 'Cherry Bomb';
+
+  @override
+  String get themeLemonFlash => 'Lemon Flash';
+
+  @override
+  String get themeCyberLime => 'Cyber Lime';
+
+  @override
+  String get themeProHint =>
+      'Purple Neon is free. Extra themes are included with Pro.';
+
+  @override
+  String get themeProRequired => 'Themes are included with Pro.';
+
+  @override
+  String get themeSaved => 'Theme saved.';
+
+  @override
+  String get termsConditions => 'Terms & Conditions';
+
+  @override
   String get privacy => 'गोपनीयता';
 
   @override

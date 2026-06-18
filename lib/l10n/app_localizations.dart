@@ -522,6 +522,90 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get settings;
 
+  /// No description provided for @theme.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme'**
+  String get theme;
+
+  /// No description provided for @themePurpleNeon.
+  ///
+  /// In en, this message translates to:
+  /// **'Purple Neon'**
+  String get themePurpleNeon;
+
+  /// No description provided for @themeElectricBlue.
+  ///
+  /// In en, this message translates to:
+  /// **'Electric Blue'**
+  String get themeElectricBlue;
+
+  /// No description provided for @themeHotPink.
+  ///
+  /// In en, this message translates to:
+  /// **'Hot Pink'**
+  String get themeHotPink;
+
+  /// No description provided for @themeLimeGlow.
+  ///
+  /// In en, this message translates to:
+  /// **'Lime Glow'**
+  String get themeLimeGlow;
+
+  /// No description provided for @themeSunsetPop.
+  ///
+  /// In en, this message translates to:
+  /// **'Sunset Pop'**
+  String get themeSunsetPop;
+
+  /// No description provided for @themeAquaVibe.
+  ///
+  /// In en, this message translates to:
+  /// **'Aqua Vibe'**
+  String get themeAquaVibe;
+
+  /// No description provided for @themeCherryBomb.
+  ///
+  /// In en, this message translates to:
+  /// **'Cherry Bomb'**
+  String get themeCherryBomb;
+
+  /// No description provided for @themeLemonFlash.
+  ///
+  /// In en, this message translates to:
+  /// **'Lemon Flash'**
+  String get themeLemonFlash;
+
+  /// No description provided for @themeCyberLime.
+  ///
+  /// In en, this message translates to:
+  /// **'Cyber Lime'**
+  String get themeCyberLime;
+
+  /// No description provided for @themeProHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Purple Neon is free. Extra themes are included with Pro.'**
+  String get themeProHint;
+
+  /// No description provided for @themeProRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Themes are included with Pro.'**
+  String get themeProRequired;
+
+  /// No description provided for @themeSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme saved.'**
+  String get themeSaved;
+
+  /// No description provided for @termsConditions.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms & Conditions'**
+  String get termsConditions;
+
   /// No description provided for @privacy.
   ///
   /// In en, this message translates to:

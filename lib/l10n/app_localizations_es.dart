@@ -216,6 +216,49 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settings => 'Ajustes';
 
   @override
+  String get theme => 'Tema';
+
+  @override
+  String get themePurpleNeon => 'Neón morado';
+
+  @override
+  String get themeElectricBlue => 'Azul eléctrico';
+
+  @override
+  String get themeHotPink => 'Rosa intenso';
+
+  @override
+  String get themeLimeGlow => 'Verde neón';
+
+  @override
+  String get themeSunsetPop => 'Atardecer pop';
+
+  @override
+  String get themeAquaVibe => 'Aqua vibrante';
+
+  @override
+  String get themeCherryBomb => 'Rojo cereza';
+
+  @override
+  String get themeLemonFlash => 'Amarillo limón';
+
+  @override
+  String get themeCyberLime => 'Lima cyber';
+
+  @override
+  String get themeProHint =>
+      'Neón morado es gratis. Los temas extra están incluidos con Pro.';
+
+  @override
+  String get themeProRequired => 'Los temas están incluidos con Pro.';
+
+  @override
+  String get themeSaved => 'Tema guardado.';
+
+  @override
+  String get termsConditions => 'Términos y condiciones';
+
+  @override
   String get privacy => 'Política de privacidad';
 
   @override

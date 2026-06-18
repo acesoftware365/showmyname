@@ -84,9 +84,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _onThemeChanged(AppThemeStyle value) async {
+    final t = AppLocalizations.of(context);
     if (_isPremiumTheme(value) && !_isPro) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Themes are included with Pro.')),
+        SnackBar(content: Text(t.themeProRequired)),
       );
       context.push('/paywall');
       return;
@@ -98,23 +99,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Theme saved.')),
+      SnackBar(content: Text(t.themeSaved)),
     );
   }
 
   bool _isPremiumTheme(AppThemeStyle style) => style != AppThemeStyle.purple;
 
-  String _themeLabel(AppThemeStyle style) {
+  String _themeLabel(AppThemeStyle style, AppLocalizations t) {
     return switch (style) {
-      AppThemeStyle.purple => 'Purple Neon',
-      AppThemeStyle.blue => 'Electric Blue',
-      AppThemeStyle.pink => 'Hot Pink',
-      AppThemeStyle.green => 'Lime Glow',
-      AppThemeStyle.sunset => 'Sunset Pop',
-      AppThemeStyle.aqua => 'Aqua Vibe',
-      AppThemeStyle.cherry => 'Cherry Bomb',
-      AppThemeStyle.lemon => 'Lemon Flash',
-      AppThemeStyle.cyber => 'Cyber Lime',
+      AppThemeStyle.purple => t.themePurpleNeon,
+      AppThemeStyle.blue => t.themeElectricBlue,
+      AppThemeStyle.pink => t.themeHotPink,
+      AppThemeStyle.green => t.themeLimeGlow,
+      AppThemeStyle.sunset => t.themeSunsetPop,
+      AppThemeStyle.aqua => t.themeAquaVibe,
+      AppThemeStyle.cherry => t.themeCherryBomb,
+      AppThemeStyle.lemon => t.themeLemonFlash,
+      AppThemeStyle.cyber => t.themeCyberLime,
     };
   }
 
@@ -283,7 +284,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Theme',
+                    t.theme,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 10),
@@ -310,7 +311,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                             ),
                             const SizedBox(width: 10),
-                            Text(_themeLabel(style)),
+                            Text(_themeLabel(style, t)),
                             if (_isPremiumTheme(style)) ...[
                               const SizedBox(width: 8),
                               Icon(
@@ -330,9 +331,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Purple Neon is free. Extra themes are included with Pro.',
-                    style: TextStyle(color: Colors.white70),
+                  Text(
+                    t.themeProHint,
+                    style: const TextStyle(color: Colors.white70),
                   ),
                 ],
               ),
@@ -354,7 +355,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.description_outlined),
-                  title: const Text('Terms & Conditions'),
+                  title: Text(t.termsConditions),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/terms'),
                 ),

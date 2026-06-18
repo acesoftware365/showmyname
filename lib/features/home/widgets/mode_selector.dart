@@ -125,7 +125,7 @@ class _ModePill extends StatelessWidget {
     final accent = Theme.of(context).colorScheme.primary;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
-      height: tablet ? 84 : 68,
+      height: tablet ? 88 : 76,
       decoration: BoxDecoration(
         color: selected
             ? accent.withOpacity(0.28)
@@ -154,7 +154,7 @@ class _ModePill extends StatelessWidget {
           child: Padding(
             padding: EdgeInsets.symmetric(
               horizontal: tablet ? 12 : 8,
-              vertical: tablet ? 12 : 9,
+              vertical: tablet ? 12 : 8,
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
