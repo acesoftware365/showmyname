@@ -293,3 +293,10 @@ Added for version 1.0.21+26.
 Added for version 1.0.22+27.
 
 - Removed the visible starter-template legal note from the Terms screen.
+
+## Settings Theme Dropdown Fix
+
+Added for version 1.0.23+28.
+
+- Fixed a Settings screen layout crash caused by an expanded Theme dropdown row inside an unbounded menu item.
+- Simplified Settings again by removing the temporary Plan preview card from the screen while keeping Language, Theme, Privacy, Terms, and About.

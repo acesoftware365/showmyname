@@ -5,14 +5,11 @@
 // - No Paywall access
 // - Ads handled globally
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'; // ✅ Needed for RenderBox (popover anchor on iPad)
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/app_controller.dart';
 import '../../app/app_scope.dart';
@@ -30,7 +27,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _loading = false;
   String _languageValue = 'system';
   AppThemeStyle _themeValue = AppThemeStyle.purple;
-  PlanPreviewOverride _planPreview = PlanPreviewOverride.none;
   bool _isPro = false;
 
   // ✅ Share anchor for iPad (popover)
@@ -54,7 +50,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final controller = AppScope.read(context);
     final locale = controller.locale;
     final lang = locale?.languageCode ?? 'system';
-    final preview = await SubscriptionManager.getPreviewOverride();
     final isPro = await SubscriptionManager.isPro();
     var theme = controller.themeStyle;
 
@@ -67,7 +62,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _languageValue = lang;
       _themeValue = theme;
-      _planPreview = preview;
       _isPro = isPro;
       _loading = false;
     });
@@ -108,47 +102,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Future<void> _onPlanPreviewChanged(PlanPreviewOverride value) async {
-    setState(() => _planPreview = value);
-    await SubscriptionManager.setPreviewOverride(value);
-    final isPro = await SubscriptionManager.isPro();
-    if (!mounted) return;
-    setState(() => _isPro = isPro);
-    if (!isPro && _isPremiumTheme(_themeValue)) {
-      final controller = AppScope.read(context);
-      await controller.setThemeStyle(AppThemeStyle.purple);
-      if (!mounted) return;
-      setState(() => _themeValue = AppThemeStyle.purple);
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          value == PlanPreviewOverride.pro
-              ? 'Previewing Pro version.'
-              : value == PlanPreviewOverride.free
-                  ? 'Previewing Free version.'
-                  : 'Using real purchase status.',
-        ),
-      ),
-    );
-  }
-
   bool _isPremiumTheme(AppThemeStyle style) => style != AppThemeStyle.purple;
-
-  Future<void> _manageSubscription() async {
-    final uri = Platform.isIOS
-        ? Uri.parse('https://apps.apple.com/account/subscriptions')
-        : Uri.parse(
-            'https://play.google.com/store/account/subscriptions?package=com.liisgo.showmyname',
-          );
-
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open subscription settings.')),
-      );
-    }
-  }
 
   String _themeLabel(AppThemeStyle style) {
     return switch (style) {
@@ -339,6 +293,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       return DropdownMenuItem(
                         value: style,
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Container(
                               width: 18,
@@ -355,7 +310,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                             ),
                             const SizedBox(width: 10),
-                            Expanded(child: Text(_themeLabel(style))),
+                            Text(_themeLabel(style)),
                             if (_isPremiumTheme(style)) ...[
                               const SizedBox(width: 8),
                               Icon(
@@ -378,93 +333,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const Text(
                     'Purple Neon is free. Extra themes are included with Pro.',
                     style: TextStyle(color: Colors.white70),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 14),
-
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Plan',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _isPro
-                                  ? 'Pro preview active: no ads, premium features.'
-                                  : 'Free preview active: ads visible, basic features.',
-                              style: const TextStyle(color: Colors.white70),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      FilledButton(
-                        onPressed: () => context.push('/paywall'),
-                        child: const Text('View Pro'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  SegmentedButton<PlanPreviewOverride>(
-                    showSelectedIcon: false,
-                    segments: const [
-                      ButtonSegment(
-                        value: PlanPreviewOverride.free,
-                        label: Text('Free'),
-                      ),
-                      ButtonSegment(
-                        value: PlanPreviewOverride.pro,
-                        label: Text('Pro'),
-                      ),
-                      ButtonSegment(
-                        value: PlanPreviewOverride.none,
-                        label: Text('Real'),
-                      ),
-                    ],
-                    selected: {_planPreview},
-                    onSelectionChanged: (selected) {
-                      _onPlanPreviewChanged(selected.first);
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Use Free and Pro here to preview how the app looks before store purchases are live.',
-                    style: TextStyle(color: Colors.white60, fontSize: 12),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _manageSubscription,
-                          icon: const Icon(Icons.open_in_new),
-                          label: const Text('Cancel / manage plan'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => context.push('/terms'),
-                          icon: const Icon(Icons.description_outlined),
-                          label: const Text('Terms'),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
