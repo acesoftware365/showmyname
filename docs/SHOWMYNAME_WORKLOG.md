@@ -251,3 +251,11 @@ Added for version 1.0.17+22.
 - Watching a rewarded ad unlocks the selected mode once; Pro keeps unlimited access.
 - Rewarded ads now force one load attempt when the user taps "Watch ad" so the flow does not depend only on background preloading.
 - Paywall comparison was updated so ColorWave is no longer shown as a Free feature.
+
+## Free / Pro Gate Adjustment
+
+Added for version 1.0.18+23.
+
+- ColorWave is Free again.
+- Logo is now gated behind rewarded unlock or Pro.
+- Paywall comparison was updated so Logo is Pro and ColorWave is Free.

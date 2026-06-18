@@ -467,9 +467,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? _gatedFeatureForMode(HomeMode mode) {
     return switch (mode) {
       HomeMode.event => 'concert',
-      HomeMode.colorWave => 'colorwave',
       HomeMode.handwriting => 'handwriting',
-      HomeMode.airport || HomeMode.logo => null,
+      HomeMode.logo => 'logo',
+      HomeMode.airport || HomeMode.colorWave => null,
     };
   }
 
