@@ -1,7 +1,7 @@
 name: showmyname
 description: A minimal fullscreen digital sign app for airport pickup and concerts (EN/ES).
 publish_to: "none"
-version: 1.0.27+32
+version: 1.0.28+33
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -30,6 +30,8 @@ dependencies:
   in_app_purchase: ^3.2.0
   http: ^1.2.2
   in_app_update: ^4.2.3
+  firebase_core: ^4.11.0
+  firebase_analytics: ^12.4.3
 
 dependency_overrides:
   path_provider_foundation: 2.5.1

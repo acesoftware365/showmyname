@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../services/analytics/analytics_service.dart';
 import '../../services/subscription/subscription_manager.dart';
 
 class PaywallScreen extends StatefulWidget {
@@ -34,6 +35,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 
   Future<void> _buyById(String id) async {
+    await AnalyticsService.logPurchaseTap(id);
     final p = SubscriptionManager.productById(id);
     if (p == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -58,6 +60,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
   Future<void> _restore() async {
     final t = AppLocalizations.of(context);
 
+    await AnalyticsService.logRestoreTap();
     setState(() => _busy = true);
     try {
       await SubscriptionManager.restorePurchases();

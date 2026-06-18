@@ -251,6 +251,33 @@ Behavior:
   - Android mentions Google Play only.
   - Other platforms keep the generic fallback text.
 
+## Firebase Analytics
+
+Added for version 1.0.28+33.
+
+Firebase project:
+
+- `showmyname-liisgo`
+
+Registered apps:
+
+- Android package: `com.liisgo.showmyname`
+- iOS bundle: `com.liisgo.showmyname.ios`
+
+Tracked events:
+
+- App open
+- Mode selected
+- SHOW button / fullscreen display opened
+- Paywall opened from reward unlock flow
+- Purchase plan tapped
+- Restore purchases tapped
+- Reward unlock choice and result
+
+Implementation note:
+
+- Analytics initialization is wrapped safely. If Firebase is unavailable on a device, the app continues to run without crashing.
+
 - Live preview border and glow now use the selected app theme color instead of fixed purple.
 - Section card icon accents now use the selected app theme color.
 - LED Dot Matrix panel border glow now follows the active LED color instead of a hard-coded purple edge.

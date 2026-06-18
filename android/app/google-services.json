@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "90639649444",
+    "project_id": "showmyname-liisgo",
+    "storage_bucket": "showmyname-liisgo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:90639649444:android:81c571f7d74f8e0c753431",
+        "android_client_info": {
+          "package_name": "com.liisgo.showmyname"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4-8UD43lcb8VpgwI-uneKdHBqZLWBDo0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

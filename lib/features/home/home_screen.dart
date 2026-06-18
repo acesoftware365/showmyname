@@ -23,6 +23,7 @@ import '../../models/sign_mode.dart';
 import '../display/widgets/effect_sign.dart';
 import '../display/widgets/handwriting_sign.dart';
 import '../../services/logo/logo_storage_service.dart';
+import '../../services/analytics/analytics_service.dart';
 import '../../services/subscription/subscription_manager.dart';
 import 'widgets/mode_selector.dart';
 
@@ -462,6 +463,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _mode = SignUsageMode.concert;
       _type = SignType.colorOnly;
     });
+
+    await AnalyticsService.logModeSelected(m.name, isPro: _isPro);
   }
 
   String? _gatedFeatureForMode(HomeMode mode) {
@@ -599,12 +602,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     if (!mounted) return false;
     if (result == 'pro') {
+      await AnalyticsService.logRewardChoice(featureName, 'pro');
+      await AnalyticsService.logPaywallOpen(source: 'reward_$featureName');
       await context.push('/paywall');
       await _loadState();
       return await SubscriptionManager.isPro();
     }
     if (result != 'ad') return false;
 
+    await AnalyticsService.logRewardChoice(featureName, 'ad');
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -619,6 +625,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         const SnackBar(content: Text('Ad was not completed. Try again.')),
       );
     }
+    await AnalyticsService.logRewardResult(featureName, unlocked: unlocked);
     return unlocked;
   }
 
@@ -762,6 +769,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         colorTransition: _transitionType,
         transitionDuration: Duration(milliseconds: _transitionMs.round()),
       );
+      AnalyticsService.logShowSign(_homeMode.name, _type.name);
       context.push('/display', extra: config);
       return;
     }
@@ -788,6 +796,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         isPro: _isPro,
       );
 
+      AnalyticsService.logShowSign(_homeMode.name, _type.name);
       context.push('/display', extra: config);
       return;
     }
@@ -814,6 +823,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         isPro: _isPro,
       );
 
+      AnalyticsService.logShowSign(_homeMode.name, _type.name);
       context.push('/display', extra: config);
       return;
     }
@@ -858,6 +868,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       isPro: _isPro,
     );
 
+    AnalyticsService.logShowSign(_homeMode.name, _type.name);
     context.push('/display', extra: config);
   }
 
