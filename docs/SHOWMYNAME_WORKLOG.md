@@ -266,4 +266,9 @@ Added for version 1.0.19+24.
 
 - Subscription products now load when the app starts, so the Go Pro screen can find the Play Store / App Store products sooner.
 - No store build was uploaded for this version yet; this is ready for local testing first.
-- Google Play product setup started: the `showmyname_pro_monthly` subscription shell was created, but the base plan creation is blocked in Play Console by its Base plan ID validation. App Store Connect still requires login before subscriptions can be created for app `6758596742`.
+- Google Play product setup started: the `showmyname_pro_monthly` subscription shell exists, but it still needs a base plan before it can be sold. Play Console repeatedly rejected/blocked base plan entry from browser automation, so no half-created base plan was left active.
+- App Store Connect product setup was completed as far as possible before review:
+  - Subscription group: `ShowMyName Pro`.
+  - Monthly subscription: `showmyname_pro_monthly`, Apple ID `6781517059`, 1 month, $0.99, all countries/regions, English (U.S.) localization, status `Prepare for Submission` / pending review metadata.
+  - Yearly subscription: `showmyname_pro_yearly`, Apple ID `6781519229`, 1 year, $9.99, all countries/regions, English (U.S.) localization, status `Prepare for Submission` / pending review metadata.
+- App Store subscriptions still require review screenshot/review metadata and must be attached to a new app version before they can be approved/live.
