@@ -259,3 +259,11 @@ Added for version 1.0.18+23.
 - ColorWave is Free again.
 - Logo is now gated behind rewarded unlock or Pro.
 - Paywall comparison was updated so Logo is Pro and ColorWave is Free.
+
+## Store Product Startup Fix
+
+Added for version 1.0.19+24.
+
+- Subscription products now load when the app starts, so the Go Pro screen can find the Play Store / App Store products sooner.
+- No store build was uploaded for this version yet; this is ready for local testing first.
+- Google Play product setup started: the `showmyname_pro_monthly` subscription shell was created, but the base plan creation is blocked in Play Console by its Base plan ID validation. App Store Connect still requires login before subscriptions can be created for app `6758596742`.

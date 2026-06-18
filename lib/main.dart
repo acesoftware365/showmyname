@@ -8,10 +8,12 @@ import 'app/app_scope.dart';
 import 'app/routing/app_router.dart';
 import 'features/update/force_update_gate.dart';
 import 'l10n/app_localizations.dart';
+import 'services/subscription/subscription_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await MobileAds.instance.initialize();
+  await SubscriptionManager.init();
   runApp(const _Bootstrap());
 }
 
