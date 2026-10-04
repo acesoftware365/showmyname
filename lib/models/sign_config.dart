@@ -6,6 +6,40 @@
 import 'package:flutter/material.dart';
 import 'sign_mode.dart';
 
+class HandwritingLayer {
+  final List<List<Offset>> strokes;
+  final Color color;
+  final double strokeWidth;
+  final HandwritingStrokeStyle style;
+  final bool visible;
+
+  const HandwritingLayer({
+    this.strokes = const <List<Offset>>[],
+    this.color = Colors.white,
+    this.strokeWidth = 12,
+    this.style = HandwritingStrokeStyle.smooth,
+    this.visible = true,
+  });
+
+  HandwritingLayer copyWith({
+    List<List<Offset>>? strokes,
+    Color? color,
+    double? strokeWidth,
+    HandwritingStrokeStyle? style,
+    bool? visible,
+  }) {
+    return HandwritingLayer(
+      strokes: strokes ?? this.strokes,
+      color: color ?? this.color,
+      strokeWidth: strokeWidth ?? this.strokeWidth,
+      style: style ?? this.style,
+      visible: visible ?? this.visible,
+    );
+  }
+
+  bool get isEmpty => strokes.every((stroke) => stroke.isEmpty);
+}
+
 class SignConfig {
   // Text
   final String? message;
@@ -30,8 +64,11 @@ class SignConfig {
   final Color textColor;
   final Color backgroundColor;
   final bool bold;
+  final bool italic;
+  final bool underline;
   final TextAlign textAlign;
   final bool showIcon;
+  final String iconSymbol;
 
   // Concert text effects
   final ConcertTextEffect concertTextEffect;
@@ -61,6 +98,7 @@ class SignConfig {
   final Color handwritingColor;
   final double handwritingStrokeWidth;
   final HandwritingStrokeStyle handwritingStyle;
+  final List<HandwritingLayer> handwritingLayers;
 
   // Pro flag
   final bool isPro;
@@ -88,8 +126,11 @@ class SignConfig {
     this.textColor = Colors.white,
     this.backgroundColor = Colors.black,
     this.bold = true,
+    this.italic = false,
+    this.underline = false,
     this.textAlign = TextAlign.center,
     this.showIcon = false,
+    this.iconSymbol = '✈',
     this.concertTextEffect = ConcertTextEffect.simple,
     this.ledColor = const Color(0xFFB56CFF),
     this.ledGlowIntensity = 0.75,
@@ -113,6 +154,7 @@ class SignConfig {
     this.handwritingColor = Colors.white,
     this.handwritingStrokeWidth = 12,
     this.handwritingStyle = HandwritingStrokeStyle.smooth,
+    this.handwritingLayers = const <HandwritingLayer>[],
     this.isPro = false,
     this.singleColor,
     this.cycleColors = const <Color>[],

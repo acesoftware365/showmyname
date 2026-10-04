@@ -6,7 +6,6 @@
 // - Ads handled globally
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart'; // ✅ Needed for RenderBox (popover anchor on iPad)
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:share_plus/share_plus.dart';

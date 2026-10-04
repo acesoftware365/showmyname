@@ -11,10 +11,12 @@ import 'ad_banner.dart';
 
 class AdBannerShell extends StatefulWidget {
   final Widget child;
+  final bool showBanner;
 
   const AdBannerShell({
     super.key,
     required this.child,
+    this.showBanner = true,
   });
 
   @override
@@ -49,18 +51,31 @@ class _AdBannerShellState extends State<AdBannerShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(child: widget.child),
-        if (!_isPro)
-          const SafeArea(
-            top: false,
-            child: Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Center(child: AdBanner()),
+    // Keep every part of the home experience in the same safe frame. On Duo,
+    // applying this only to the lower controls made their horizontal space
+    // different from the preview and app bar.
+    return SafeArea(
+      child: Column(
+        children: [
+          Expanded(child: widget.child),
+          if (widget.showBanner && !_isPro)
+            SizedBox(
+              width: double.infinity,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 600),
+                    child: const SizedBox(
+                      width: double.infinity,
+                      child: AdBanner(),
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

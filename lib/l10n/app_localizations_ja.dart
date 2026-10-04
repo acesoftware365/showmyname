@@ -442,4 +442,52 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get backgroundColor => 'Background';
+
+  @override
+  String get editSignText => 'テキストを編集';
+
+  @override
+  String get livePreview => 'プレビュー';
+
+  @override
+  String get appearance => '表示設定';
+
+  @override
+  String get appearanceHint => 'サイズ、色、配置';
+
+  @override
+  String get doneEditing => '完了';
+
+  @override
+  String get boldText => '太字';
+
+  @override
+  String get airportIcon => '空港アイコン';
+
+  @override
+  String get alignLeft => '左揃え';
+
+  @override
+  String get alignCenter => '中央揃え';
+
+  @override
+  String get alignRight => '右揃え';
+
+  @override
+  String get advertisement => '広告';
+
+  @override
+  String get textTab => 'テキスト';
+
+  @override
+  String get italicText => '斜体';
+
+  @override
+  String get underlineText => '下線';
+
+  @override
+  String get signIcon => 'アイコン';
+
+  @override
+  String get editSign => '編集';
 }

@@ -121,5 +121,21 @@
   "languageJapanese": "Японский",
   "languageRussian": "Русский",
   "languageChinese": "Китайский",
-  "languageArabic": "Арабский"
+  "languageArabic": "Арабский",
+  "editSignText": "Изменить текст",
+  "livePreview": "Предпросмотр",
+  "appearance": "Оформление",
+  "appearanceHint": "Размер, цвета и выравнивание",
+  "doneEditing": "Готово",
+  "boldText": "Жирный",
+  "airportIcon": "Значок аэропорта",
+  "alignLeft": "По левому краю",
+  "alignCenter": "По центру",
+  "alignRight": "По правому краю",
+  "advertisement": "Реклама",
+  "textTab": "Текст",
+  "italicText": "Курсив",
+  "underlineText": "Подчёркивание",
+  "signIcon": "Значок",
+  "editSign": "Изменить"
 }

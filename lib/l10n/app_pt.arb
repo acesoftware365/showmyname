@@ -121,5 +121,21 @@
   "languageJapanese": "Japonês",
   "languageRussian": "Russo",
   "languageChinese": "Chinês",
-  "languageArabic": "Árabe"
+  "languageArabic": "Árabe",
+  "editSignText": "Editar texto",
+  "livePreview": "Prévia",
+  "appearance": "Aparência",
+  "appearanceHint": "Tamanho, cores e alinhamento",
+  "doneEditing": "Concluído",
+  "boldText": "Negrito",
+  "airportIcon": "Ícone de aeroporto",
+  "alignLeft": "Alinhar à esquerda",
+  "alignCenter": "Centralizar",
+  "alignRight": "Alinhar à direita",
+  "advertisement": "Publicidade",
+  "textTab": "Texto",
+  "italicText": "Itálico",
+  "underlineText": "Sublinhado",
+  "signIcon": "Ícone",
+  "editSign": "Editar"
 }

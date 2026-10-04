@@ -25,10 +25,6 @@ class SubscriptionManager {
   static const String _kIsProLegacy = 'is_pro';
   static const String _kPreviewOverride = 'plan_preview_override_v1';
 
-  // ✅ TODO: Put your real product IDs here
-  // Example:
-  // - "showmyname_pro_monthly"
-  // - "showmyname_pro_yearly"
   static const Set<String> _kProductIds = {
     monthlyProductId,
     yearlyProductId,
@@ -44,6 +40,13 @@ class SubscriptionManager {
 
   static List<ProductDetails> _products = [];
   static List<ProductDetails> get products => List.unmodifiable(_products);
+  static Set<String> _notFoundProductIds = const <String>{};
+  static Set<String> get notFoundProductIds =>
+      Set.unmodifiable(_notFoundProductIds);
+  static String? _lastStoreError;
+  static String? get lastStoreError => _lastStoreError;
+  static bool _storeAvailable = false;
+  static bool get storeAvailable => _storeAvailable;
 
   static Future<void> init() async {
     if (_initialized) return;
@@ -52,21 +55,41 @@ class SubscriptionManager {
     // Push current known state first
     _proStream.add(await isPro());
 
-    final available = await InAppPurchase.instance.isAvailable();
-    if (!available) return;
+    _listenForPurchases();
+    await loadProducts(force: true);
+  }
 
-    // Load products
-    final response =
-        await InAppPurchase.instance.queryProductDetails(_kProductIds);
-    _products = response.productDetails;
-
-    // Listen for purchase updates
+  static void _listenForPurchases() {
+    if (_purchaseSub != null) return;
     _purchaseSub = InAppPurchase.instance.purchaseStream.listen(
       (purchases) async {
         await _handlePurchaseUpdates(purchases);
       },
       onError: (_) {},
     );
+  }
+
+  static Future<void> loadProducts({bool force = false}) async {
+    if (!force && _products.length == _kProductIds.length) return;
+
+    _listenForPurchases();
+
+    try {
+      final available = await InAppPurchase.instance.isAvailable();
+      _storeAvailable = available;
+      if (!available) {
+        _lastStoreError = 'Store is not available on this device.';
+        return;
+      }
+
+      final response =
+          await InAppPurchase.instance.queryProductDetails(_kProductIds);
+      _products = response.productDetails;
+      _notFoundProductIds = response.notFoundIDs.toSet();
+      _lastStoreError = response.error?.message;
+    } catch (error) {
+      _lastStoreError = error.toString();
+    }
   }
 
   static Future<void> dispose() async {
@@ -142,7 +165,25 @@ class SubscriptionManager {
     }
   }
 
+  static String storeSetupMessageFor(String productId) {
+    if (!_storeAvailable) {
+      return 'The App Store is not available on this device right now.';
+    }
+
+    if (_notFoundProductIds.contains(productId) || _products.isEmpty) {
+      return 'Pro plans are waiting for App Store approval. Please try again after the update is approved.';
+    }
+
+    if (_lastStoreError != null && _lastStoreError!.trim().isNotEmpty) {
+      return 'The App Store could not load this plan yet. Please try again in a moment.';
+    }
+
+    return 'Plan is still loading. Please try again in a moment.';
+  }
+
   static Future<void> buy(ProductDetails product) async {
+    _listenForPurchases();
+
     final available = await InAppPurchase.instance.isAvailable();
     if (!available) return;
 

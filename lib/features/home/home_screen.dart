@@ -11,21 +11,26 @@
 
 import 'dart:io';
 import 'dart:async';
+import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../ads/rewarded_ad_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/sign_config.dart';
 import '../../models/sign_mode.dart';
-import '../display/widgets/effect_sign.dart';
 import '../display/widgets/handwriting_sign.dart';
 import '../../services/logo/logo_storage_service.dart';
 import '../../services/analytics/analytics_service.dart';
 import '../../services/subscription/subscription_manager.dart';
 import 'widgets/mode_selector.dart';
+import 'widgets/scrollable_mode_dock.dart';
+import '../display/display_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -62,16 +67,22 @@ class _UnlockLine extends StatelessWidget {
   }
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   final _airportController = TextEditingController(text: 'Welcome 😊 VIP ⭐ 👉');
   final _eventController = TextEditingController(text: 'LIVE TONIGHT 🎤 VIP');
   final GlobalKey _shareKey = GlobalKey();
+  final GlobalKey _createdImageKey = GlobalKey();
+  final _modeItemKeys = {
+    for (final mode in HomeMode.values) mode: GlobalKey(),
+  };
 
   static const String _appleUrl =
       'https://apps.apple.com/us/app/showmyname-display/id6758596742';
   static const String _googleUrl =
       'https://play.google.com/store/apps/details?id=com.liisgo.showmyname&utm_source=na_Med';
   static const String _liisgoWebsite = 'https://liisgo.com';
+  static const int _maxHandwritingLayers = 5;
 
   // ✅ Presets
   HomeMode _homeMode = HomeMode.airport;
@@ -83,8 +94,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // Airport options
   double _airportFontScale = 1.0;
   bool _airportBold = true;
+  bool _airportItalic = false;
+  bool _airportUnderline = false;
+  int _adjustmentTab = 0;
+  bool _compactEditorOpen = false;
   TextAlign _airportTextAlign = TextAlign.center;
   bool _airportShowIcon = false;
+  String _airportIconSymbol = '✈';
 
   // Event options
   MotionDirection _motionDirection = MotionDirection.none;
@@ -122,14 +138,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // Handwriting
   final List<List<Offset>> _handwritingStrokes = <List<Offset>>[];
   Color _handwritingColor = Colors.white;
+  Color _handwritingBackgroundColor = Colors.black;
   double _handwritingStrokeWidth = 10;
   HandwritingStrokeStyle _handwritingStyle = HandwritingStrokeStyle.smooth;
+  final List<HandwritingLayer> _handwritingLayers = <HandwritingLayer>[
+    HandwritingLayer(strokeWidth: 10),
+    HandwritingLayer(
+      color: Color(0xFF00D4FF),
+      strokeWidth: 12,
+      style: HandwritingStrokeStyle.neon,
+    ),
+    HandwritingLayer(
+      color: Color(0xFFFF7A00),
+      strokeWidth: 14,
+      style: HandwritingStrokeStyle.fire,
+    ),
+  ];
+  int _activeHandwritingLayer = 0;
+  final List<List<HandwritingLayer>> _handwritingUndoStack =
+      <List<HandwritingLayer>>[];
+  final List<List<HandwritingLayer>> _handwritingRedoStack =
+      <List<HandwritingLayer>>[];
 
   // Pro
   bool _loading = false;
   bool _isPro = false;
   StreamSubscription<bool>? _proSub;
   final Set<String> _rewardUnlockedFeatures = <String>{};
+  bool _modeChangeInProgress = false;
+  HomeMode? _queuedMode;
 
   // ✅ ColorWave options
   bool _colorCycle = true; // false = single, true = cycle
@@ -153,13 +190,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   // ✅ Persistent rotate hint (after bubble)
   bool _persistentRotateHint = false;
+  bool _narrowHandwritingEditorOpen = false;
+  bool _narrowHandwritingEditorCloseScheduled = false;
   late final AnimationController _wiggleController;
   late final Animation<double> _wiggleTurns; // rotation turns
-  late final AnimationController _colorWavePreviewController;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     _tipController = AnimationController(
       vsync: this,
@@ -198,11 +237,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       CurvedAnimation(parent: _wiggleController, curve: Curves.easeInOut),
     );
 
-    _colorWavePreviewController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 8),
-    )..repeat();
-
     _loadState();
     _proSub = SubscriptionManager.proStream.listen((isPro) {
       if (!mounted) return;
@@ -211,6 +245,122 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _applyHomeMode(HomeMode.airport);
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowRotateTip());
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    if (!_narrowHandwritingEditorOpen ||
+        _narrowHandwritingEditorCloseScheduled) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !_narrowHandwritingEditorOpen ||
+          _narrowHandwritingEditorCloseScheduled) {
+        return;
+      }
+
+      final view = View.of(context);
+      final logicalWidth = view.physicalSize.width / view.devicePixelRatio;
+      if (logicalWidth < 600) return;
+
+      _narrowHandwritingEditorCloseScheduled = true;
+      Navigator.of(context, rootNavigator: true).pop();
+    });
+  }
+
+  HandwritingLayer get _activeLayer =>
+      _handwritingLayers[_activeHandwritingLayer];
+
+  bool get _hasHandwriting =>
+      _handwritingLayers.any((layer) => layer.visible && !layer.isEmpty);
+
+  void _replaceActiveHandwritingLayer(HandwritingLayer layer) {
+    _handwritingLayers[_activeHandwritingLayer] = layer;
+    _handwritingStrokes
+      ..clear()
+      ..addAll(layer.strokes.map((stroke) => List<Offset>.from(stroke)));
+    _handwritingColor = layer.color;
+    _handwritingStrokeWidth = layer.strokeWidth;
+    _handwritingStyle = layer.style;
+  }
+
+  void _selectHandwritingLayer(int index) {
+    _activeHandwritingLayer = index;
+    final layer = _activeLayer;
+    _handwritingStrokes
+      ..clear()
+      ..addAll(layer.strokes.map((stroke) => List<Offset>.from(stroke)));
+    _handwritingColor = layer.color;
+    _handwritingStrokeWidth = layer.strokeWidth;
+    _handwritingStyle = layer.style;
+  }
+
+  List<HandwritingLayer> _copyHandwritingLayers() {
+    return _handwritingLayers.map((layer) {
+      return layer.copyWith(
+        strokes: layer.strokes
+            .map((stroke) => List<Offset>.from(stroke))
+            .toList(growable: false),
+      );
+    }).toList(growable: false);
+  }
+
+  List<List<Offset>> _flattenHandwritingStrokes() {
+    return _handwritingLayers
+        .where((layer) => layer.visible)
+        .expand((layer) => layer.strokes)
+        .map((stroke) => List<Offset>.from(stroke))
+        .toList(growable: false);
+  }
+
+  void _recordHandwritingChange() {
+    _handwritingUndoStack.add(_copyHandwritingLayers());
+    if (_handwritingUndoStack.length > 30) {
+      _handwritingUndoStack.removeAt(0);
+    }
+    _handwritingRedoStack.clear();
+  }
+
+  void _restoreHandwritingLayers(List<HandwritingLayer> layers) {
+    _handwritingLayers
+      ..clear()
+      ..addAll(layers.map((layer) => layer.copyWith(
+            strokes: layer.strokes
+                .map((stroke) => List<Offset>.from(stroke))
+                .toList(growable: false),
+          )));
+    _activeHandwritingLayer =
+        _activeHandwritingLayer.clamp(0, _handwritingLayers.length - 1);
+    _selectHandwritingLayer(_activeHandwritingLayer);
+  }
+
+  void _undoHandwriting() {
+    if (_handwritingUndoStack.isEmpty) return;
+    _handwritingRedoStack.add(_copyHandwritingLayers());
+    _restoreHandwritingLayers(_handwritingUndoStack.removeLast());
+  }
+
+  void _redoHandwriting() {
+    if (_handwritingRedoStack.isEmpty) return;
+    _handwritingUndoStack.add(_copyHandwritingLayers());
+    _restoreHandwritingLayers(_handwritingRedoStack.removeLast());
+  }
+
+  void _addHandwritingLayer() {
+    if (_handwritingLayers.length >= _maxHandwritingLayers) return;
+    _recordHandwritingChange();
+    final source = _activeLayer;
+    _handwritingLayers.add(
+      HandwritingLayer(
+        color: source.color,
+        strokeWidth: source.strokeWidth,
+        style: source.style,
+      ),
+    );
+    _selectHandwritingLayer(_handwritingLayers.length - 1);
   }
 
   @override
@@ -397,32 +547,68 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Future<void> _applyHomeMode(HomeMode m) async {
-    final gatedFeature = _gatedFeatureForMode(m);
-    _rewardUnlockedFeatures.removeWhere((feature) => feature != gatedFeature);
-
-    if (gatedFeature != null &&
-        !_isPro &&
-        !_rewardUnlockedFeatures.contains(gatedFeature)) {
-      final unlocked = await _showRewardUnlockSheet(
-        title: 'Unlock ${_featureNameForMode(m)}',
-        featureName: _featureNameForMode(m),
-        description: _featureDescriptionForMode(m),
-      );
-      if (!unlocked) return;
-      _rewardUnlockedFeatures.add(gatedFeature);
-      if (!mounted) return;
+  Future<void> _shareCreatedImage() async {
+    final t = AppLocalizations.of(context);
+    final boundary = _createdImageKey.currentContext?.findRenderObject()
+        as RenderRepaintBoundary?;
+    if (boundary == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${_featureNameForMode(m)} unlocked once. Upgrade for unlimited use.',
-          ),
-        ),
+        const SnackBar(content: Text('The image is still preparing.')),
       );
+      return;
     }
 
-    if (!mounted) return;
+    try {
+      final image = await boundary.toImage(pixelRatio: 3);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) throw StateError('Unable to create image data.');
 
+      final directory = await getTemporaryDirectory();
+      final imageFile = File(
+        '${directory.path}/showmyname-${DateTime.now().millisecondsSinceEpoch}.png',
+      );
+      await imageFile.writeAsBytes(byteData.buffer.asUint8List());
+      if (!mounted) return;
+
+      final anchorContext = _createdImageKey.currentContext ?? context;
+      final box = anchorContext.findRenderObject() as RenderBox?;
+      await Share.shareXFiles(
+        [XFile(imageFile.path, mimeType: 'image/png')],
+        text: 'Made with ShowMyName',
+        sharePositionOrigin:
+            box == null ? null : box.localToGlobal(Offset.zero) & box.size,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${t.shareApp} failed. Please try again.')),
+      );
+    }
+  }
+
+  Future<void> _handleModeChanged(HomeMode mode) async {
+    if (_modeChangeInProgress) {
+      _queuedMode = mode;
+      return;
+    }
+
+    _modeChangeInProgress = true;
+    try {
+      await _applyHomeMode(mode);
+    } finally {
+      _modeChangeInProgress = false;
+    }
+
+    final queued = _queuedMode;
+    if (queued != null && queued != mode && mounted) {
+      _queuedMode = null;
+      await _handleModeChanged(queued);
+    } else {
+      _queuedMode = null;
+    }
+  }
+
+  void _commitHomeMode(HomeMode m) {
     setState(() {
       _homeMode = m;
 
@@ -463,7 +649,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _mode = SignUsageMode.concert;
       _type = SignType.colorOnly;
     });
+  }
 
+  Future<void> _applyHomeMode(HomeMode m) async {
+    final gatedFeature = _gatedFeatureForMode(m);
+    _rewardUnlockedFeatures.removeWhere((feature) => feature != gatedFeature);
+
+    if (gatedFeature != null &&
+        !_isPro &&
+        !_rewardUnlockedFeatures.contains(gatedFeature)) {
+      final unlocked = await _showRewardUnlockSheet(
+        title: 'Unlock ${_featureNameForMode(m)}',
+        featureName: _featureNameForMode(m),
+        description: _featureDescriptionForMode(m),
+      );
+      if (!unlocked) return;
+      _rewardUnlockedFeatures.add(gatedFeature);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${_featureNameForMode(m)} unlocked once. Upgrade for unlimited use.',
+          ),
+        ),
+      );
+    }
+
+    if (!mounted) return;
+
+    _commitHomeMode(m);
     await AnalyticsService.logModeSelected(m.name, isPro: _isPro);
   }
 
@@ -506,6 +720,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }) async {
     final result = await showModalBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: const Color(0xFF0D1018),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -514,7 +730,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         final accent = Theme.of(ctx).colorScheme.primary;
         return SafeArea(
           top: false,
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -611,13 +827,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (result != 'ad') return false;
 
     await AnalyticsService.logRewardChoice(featureName, 'ad');
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
     final unlocked = await RewardedAdService.instance.showOnce();
-    if (mounted) Navigator.of(context, rootNavigator: true).pop();
     if (!mounted) return false;
 
     if (!unlocked) {
@@ -722,6 +932,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
+  // Kept for the fuller ColorWave editor path.
+  // ignore: unused_element
   Future<void> _addColor() async {
     final selected = await _pickColorDialog(context);
     if (selected == null) return;
@@ -735,6 +947,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
+  // Kept for the fuller ColorWave editor path.
+  // ignore: unused_element
   Future<void> _editColorAt(int index) async {
     final selected = await _pickColorDialog(context);
     if (selected == null) return;
@@ -756,9 +970,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     // ColorWave
     if (_type == SignType.colorOnly) {
       final config = SignConfig(
-        message: null,
+        message: _currentTextController.text.trim().isEmpty
+            ? _airportController.text
+            : _currentTextController.text,
         usageMode: _mode,
         signType: SignType.colorOnly,
+        backgroundColor: Colors.black,
+        fontScale: _currentFontScale,
+        bold: _airportBold,
+        italic: _airportItalic,
+        underline: _airportUnderline,
+        textAlign: _airportTextAlign,
         showLogo: false,
         logoPath: null,
         isPro: _isPro,
@@ -803,7 +1025,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     // Handwriting
     if (_type == SignType.handwritingOnly) {
-      if (_handwritingStrokes.isEmpty) {
+      if (!_hasHandwriting) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Write a name first.')),
         );
@@ -814,12 +1036,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         message: null,
         usageMode: _mode,
         signType: SignType.handwritingOnly,
-        backgroundColor: Colors.black,
-        handwritingStrokes:
-            _handwritingStrokes.map((s) => List<Offset>.from(s)).toList(),
+        backgroundColor: _handwritingBackgroundColor,
+        handwritingStrokes: _flattenHandwritingStrokes(),
         handwritingColor: _handwritingColor,
         handwritingStrokeWidth: _handwritingStrokeWidth,
         handwritingStyle: _handwritingStyle,
+        handwritingLayers: _copyHandwritingLayers(),
         isPro: _isPro,
       );
 
@@ -847,9 +1069,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       textColor: _currentTextColor,
       backgroundColor: _currentBackgroundColor,
       bold: _homeMode == HomeMode.airport ? _airportBold : true,
+      italic: _homeMode == HomeMode.airport && _airportItalic,
+      underline: _homeMode == HomeMode.airport && _airportUnderline,
       textAlign:
           _homeMode == HomeMode.airport ? _airportTextAlign : TextAlign.center,
       showIcon: _homeMode == HomeMode.airport ? _airportShowIcon : false,
+      iconSymbol: _airportIconSymbol,
       concertTextEffect: _homeMode == HomeMode.event
           ? _concertTextEffect
           : ConcertTextEffect.simple,
@@ -957,8 +1182,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   SignConfig _previewConfig() {
     if (_homeMode == HomeMode.colorWave) {
       return SignConfig(
+        message: _currentTextController.text.trim().isEmpty
+            ? _airportController.text
+            : _currentTextController.text,
         usageMode: SignUsageMode.concert,
         signType: SignType.colorOnly,
+        backgroundColor: Colors.black,
+        fontScale: _currentFontScale,
+        bold: _airportBold,
+        italic: _airportItalic,
+        underline: _airportUnderline,
+        textAlign: _airportTextAlign,
         singleColor: _colorCycle ? null : _singleColor,
         cycleColors:
             _colorCycle ? List<Color>.from(_cycleColors) : const <Color>[],
@@ -985,17 +1219,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       return SignConfig(
         usageMode: SignUsageMode.concert,
         signType: SignType.handwritingOnly,
-        backgroundColor: Colors.black,
-        handwritingStrokes:
-            _handwritingStrokes.map((s) => List<Offset>.from(s)).toList(),
+        backgroundColor: _handwritingBackgroundColor,
+        handwritingStrokes: _flattenHandwritingStrokes(),
         handwritingColor: _handwritingColor,
         handwritingStrokeWidth: _handwritingStrokeWidth,
         handwritingStyle: _handwritingStyle,
+        handwritingLayers: _copyHandwritingLayers(),
       );
     }
 
     return SignConfig(
-      message: _currentTextController.text,
+      message: _currentTextController.text.trim(),
       usageMode: _homeMode == HomeMode.event
           ? SignUsageMode.concert
           : SignUsageMode.airport,
@@ -1005,10 +1239,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       textColor: _currentTextColor,
       backgroundColor: _currentBackgroundColor,
       bold: _homeMode == HomeMode.airport ? _airportBold : true,
+      italic: _homeMode == HomeMode.airport && _airportItalic,
+      underline: _homeMode == HomeMode.airport && _airportUnderline,
       textAlign:
           _homeMode == HomeMode.airport ? _airportTextAlign : TextAlign.center,
       showIcon: _homeMode == HomeMode.airport ? _airportShowIcon : false,
-      colorShift: false,
+      iconSymbol: _airportIconSymbol,
+      motionDirection: _motionDirection,
+      motionStyle: _motionStyle,
+      motionSpeed: _motionSpeed,
+      colorShift: _homeMode == HomeMode.event &&
+              _concertTextEffect == ConcertTextEffect.simple
+          ? _colorShift
+          : false,
       concertTextEffect: _homeMode == HomeMode.event
           ? _concertTextEffect
           : ConcertTextEffect.simple,
@@ -1067,108 +1310,43 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _colorSwatch(Color color) {
-    return Container(
-      width: 34,
-      height: 34,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white30),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.35),
-            blurRadius: 14,
+  Widget _buildLivePreview(
+    AppLocalizations t, {
+    double height = 190,
+    Alignment alignment = Alignment.topLeft,
+    GlobalKey? captureKey,
+  }) {
+    // Render at the final viewport size, then scale the whole scene uniformly.
+    // Text layout, font limits and padding therefore match the fullscreen view.
+    final media = MediaQuery.of(context);
+    final viewport = media.size;
+    final preview = SizedBox(
+      key: const ValueKey('sign-preview'),
+      height: height,
+      child: FittedBox(
+        fit: BoxFit.contain,
+        alignment: alignment,
+        child: SizedBox(
+          width: viewport.width,
+          height: viewport.height,
+          child: IgnorePointer(
+            child: MediaQuery(
+              data: media.copyWith(viewInsets: EdgeInsets.zero),
+              child: DisplayScreen(config: _previewConfig(), preview: true),
+            ),
           ),
-        ],
+        ),
       ),
     );
-  }
+    if (captureKey == null) return preview;
 
-  Color _currentColorWavePreviewColor() {
-    if (!_colorCycle || _cycleColors.isEmpty) return _singleColor;
-    if (_cycleColors.length == 1) return _cycleColors.first;
-
-    final holdMs = (_holdSeconds * 1000).round().clamp(250, 30000);
-    final transitionMs = _transitionMs.round().clamp(100, 10000);
-    final stepMs = holdMs + transitionMs;
-    final totalMs = stepMs * _cycleColors.length;
-    final elapsedMs = DateTime.now().millisecondsSinceEpoch.remainder(totalMs);
-    final index = (elapsedMs ~/ stepMs) % _cycleColors.length;
-    final nextIndex = (index + 1) % _cycleColors.length;
-    final stepElapsed = elapsedMs % stepMs;
-
-    if (stepElapsed < holdMs) return _cycleColors[index];
-
-    final localT = ((stepElapsed - holdMs) / transitionMs).clamp(0.0, 1.0);
-
-    if (_transitionType == ColorTransitionType.fade) {
-      return Color.lerp(_cycleColors[index], _cycleColors[nextIndex], localT) ??
-          _cycleColors[index];
-    }
-
-    return localT < 0.5 ? _cycleColors[index] : _cycleColors[nextIndex];
-  }
-
-  Widget _buildLivePreview(AppLocalizations t, {double height = 190}) {
-    final config = _previewConfig();
-    final accent = Theme.of(context).colorScheme.primary;
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color: config.backgroundColor,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: accent.withOpacity(0.58)),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withOpacity(0.34),
-            blurRadius: 28,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          if (config.isColorOnly)
-            Positioned.fill(
-              child: AnimatedBuilder(
-                animation: _colorWavePreviewController,
-                builder: (context, _) {
-                  return AnimatedContainer(
-                    duration: config.transitionDuration,
-                    curve: Curves.easeInOut,
-                    color: _currentColorWavePreviewColor(),
-                  );
-                },
-              ),
-            )
-          else if (config.isLogoOnly)
-            Positioned.fill(
-              child: Center(
-                child: (_logoPath == null || !_logoExistsSync)
-                    ? Text(t.noLogoSaved,
-                        style: const TextStyle(color: Colors.white70))
-                    : Padding(
-                        padding: const EdgeInsets.all(22),
-                        child:
-                            Image.file(File(_logoPath!), fit: BoxFit.contain),
-                      ),
-              ),
-            )
-          else if (config.isHandwritingOnly)
-            Positioned.fill(
-              child: HandwritingSign(
-                strokes: config.handwritingStrokes,
-                color: config.handwritingColor,
-                strokeWidth: config.handwritingStrokeWidth,
-                style: config.handwritingStyle,
-                preview: true,
-              ),
-            )
-          else
-            Positioned.fill(child: EffectSign(config: config, preview: true)),
-        ],
+    // The FittedBox may leave unused space around the sign. Keep that entire
+    // export canvas opaque so sharing never turns those areas white.
+    return RepaintBoundary(
+      key: captureKey,
+      child: ColoredBox(
+        color: _previewConfig().backgroundColor,
+        child: preview,
       ),
     );
   }
@@ -1177,94 +1355,222 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return _buildLivePreview(AppLocalizations.of(context), height: 170);
   }
 
-  Future<void> _openTextEditor(AppLocalizations t) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF0D1018),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, modalSetState) {
-            void update(VoidCallback fn) {
-              setState(fn);
-              modalSetState(() {});
-            }
-
-            return SingleChildScrollView(
-              padding: EdgeInsets.only(
-                left: 18,
-                right: 18,
-                top: 18,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 18,
+  Widget _buildFixedAdjustments(AppLocalizations t, {VoidCallback? onClose}) {
+    final isColorWave = _homeMode == HomeMode.colorWave;
+    return Material(
+      key: const ValueKey('fixed-adjustments-panel'),
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: DefaultTabController(
+                  length: 2,
+                  initialIndex: _adjustmentTab,
+                  child: TabBar(
+                    onTap: (value) => setState(() => _adjustmentTab = value),
+                    tabs: [Tab(text: t.textTab), Tab(text: t.appearance)],
+                  ),
+                ),
               ),
+              if (onClose != null)
+                IconButton(
+                  key: const ValueKey('close-compact-editor'),
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                  onPressed: onClose,
+                  icon: const Icon(Icons.close),
+                ),
+            ],
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              key: ValueKey('adjustment-scroll-$_adjustmentTab'),
+              padding: const EdgeInsets.all(16),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    children: [
-                      Text('Text',
-                          style: Theme.of(context).textTheme.titleLarge),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(22),
-                    child: _buildDialogPreview(),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: _currentTextController,
-                    minLines: 1,
-                    maxLines: 2,
-                    autofocus: true,
-                    textAlign: TextAlign.center,
-                    textAlignVertical: TextAlignVertical.center,
-                    onChanged: (_) {
-                      setState(() {});
-                      modalSetState(() {});
-                    },
-                    decoration: InputDecoration(
-                      hintText: t.messageHint,
-                      prefixIcon: const Icon(Icons.edit_outlined),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.06),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 14,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
+                  if (_adjustmentTab == 0) ...[
+                    TextField(
+                      key: const ValueKey('sign-text-field'),
+                      controller: _currentTextController,
+                      minLines: 2,
+                      maxLines: 3,
+                      textCapitalization: TextCapitalization.sentences,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        labelText: t.textEmojis,
+                        hintText: t.messageHint,
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_homeMode == HomeMode.airport)
-                    _buildAirportStyleControls(t, update),
-                  if (_homeMode == HomeMode.airport) const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: FilledButton.icon(
-                      onPressed: () => Navigator.pop(ctx),
-                      icon: const Icon(Icons.check),
-                      label: const Text('Done'),
+                    const SizedBox(height: 16),
+                    if (_homeMode == HomeMode.airport)
+                      _buildAirportStyleControls(t, setState)
+                    else if (isColorWave)
+                      _buildColorWaveTextControls(t, setState),
+                  ] else if (isColorWave) ...[
+                    _buildColorWaveControls(t, setState),
+                  ] else ...[
+                    _buildColorButton(
+                      label: t.backgroundColor,
+                      color: _currentBackgroundColor,
+                      onPressed: _pickBackgroundColor,
                     ),
-                  ),
+                    if (_homeMode == HomeMode.airport)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 56),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(t.signIcon,
+                                    style:
+                                        Theme.of(context).textTheme.labelLarge),
+                              ),
+                              const SizedBox(width: 8),
+                              Semantics(
+                                label: t.signIcon,
+                                child: Switch(
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  value: _airportShowIcon,
+                                  onChanged: (v) =>
+                                      setState(() => _airportShowIcon = v),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    if (_homeMode == HomeMode.airport)
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final symbol in [
+                            '✈',
+                            '←',
+                            '→',
+                            '↑',
+                            '↓',
+                            '★',
+                            '♥',
+                            '✓',
+                            '☀',
+                            '♫',
+                            '🚕',
+                            '👋'
+                          ])
+                            ChoiceChip(
+                              key: ValueKey('sign-icon-$symbol'),
+                              label: SizedBox(
+                                width: 32,
+                                height: 32,
+                                child: Center(
+                                    child: Text(symbol,
+                                        style: const TextStyle(fontSize: 24))),
+                              ),
+                              showCheckmark: false,
+                              selected: _airportShowIcon &&
+                                  _airportIconSymbol == symbol,
+                              onSelected: (_) => setState(() {
+                                _airportIconSymbol = symbol;
+                                _airportShowIcon = true;
+                              }),
+                            ),
+                        ],
+                      ),
+                  ],
                 ],
               ),
-            );
-          },
-        );
-      },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactTextLayout(
+      AppLocalizations t, BoxConstraints constraints) {
+    final editorBottom = (MediaQuery.viewInsetsOf(context).bottom - 120).clamp(
+        76.0, (constraints.maxHeight - 100).clamp(76.0, double.infinity));
+    return Stack(
+      children: [
+        Positioned(
+          top: 8,
+          left: 12,
+          right: 12,
+          bottom: 76,
+          child: ColoredBox(
+            color: _currentBackgroundColor,
+            child: _buildLivePreview(t,
+                alignment: Alignment.center,
+                height:
+                    (constraints.maxHeight - 84).clamp(1.0, double.infinity),
+                captureKey: _createdImageKey),
+          ),
+        ),
+        Positioned(
+          left: 12,
+          right: 12,
+          bottom: 12,
+          child: Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  key: const ValueKey('show-sign'),
+                  style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+                  onPressed: _showSign,
+                  icon: const Icon(Icons.fullscreen),
+                  label: Text(t.show),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Tooltip(
+                message: 'Share image',
+                child: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: FilledButton.tonal(
+                    key: const ValueKey('share-created-image'),
+                    style: FilledButton.styleFrom(padding: EdgeInsets.zero),
+                    onPressed: _shareCreatedImage,
+                    child: const Icon(Icons.ios_share),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  key: const ValueKey('open-compact-editor'),
+                  style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+                  onPressed: () =>
+                      setState(() => _compactEditorOpen = !_compactEditorOpen),
+                  icon: const Icon(Icons.tune),
+                  label: Text(t.editSign),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_compactEditorOpen)
+          Positioned(
+            top: 8,
+            left: 12,
+            right: 12,
+            bottom: editorBottom,
+            child: _buildFixedAdjustments(t, onClose: () {
+              FocusScope.of(context).unfocus();
+              setState(() => _compactEditorOpen = false);
+            }),
+          ),
+      ],
     );
   }
 
@@ -1272,6 +1578,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useRootNavigator: true,
+      useSafeArea: true,
       backgroundColor: const Color(0xFF0D1018),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -1367,75 +1675,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Future<void> _openColorWaveStylePopup(AppLocalizations t) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF0D1018),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, modalSetState) {
-            void update(VoidCallback fn) {
-              setState(fn);
-              modalSetState(() {});
-            }
-
-            return DraggableScrollableSheet(
-              expand: false,
-              initialChildSize: 0.72,
-              minChildSize: 0.45,
-              maxChildSize: 0.92,
-              builder: (context, controller) {
-                return ListView(
-                  controller: controller,
-                  padding: EdgeInsets.only(
-                    left: 18,
-                    right: 18,
-                    top: 18,
-                    bottom: MediaQuery.of(ctx).viewInsets.bottom + 18,
-                  ),
-                  children: [
-                    Row(
-                      children: [
-                        Text('ColorWave',
-                            style: Theme.of(context).textTheme.titleLarge),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(22),
-                      child: _buildDialogPreview(),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildColorWaveControls(t, update),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: FilledButton.icon(
-                        onPressed: () => Navigator.pop(ctx),
-                        icon: const Icon(Icons.check),
-                        label: const Text('Done'),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-
   Widget _buildColorWaveControls(
     AppLocalizations t,
     void Function(VoidCallback) update,
@@ -1445,48 +1684,72 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          value: _colorCycle,
-          onChanged: (v) => update(() => _colorCycle = v),
-          title: Text(t.colorCycle),
-          subtitle: Text(_colorCycle ? t.multiColors : t.singleColor),
-        ),
-        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
-              child: FilledButton.icon(
-                onPressed: () async {
-                  final selected = await _pickColorDialog(context);
-                  if (selected == null) return;
-                  update(() {
-                    if (_colorCycle) {
-                      _cycleColors.add(selected);
-                    } else {
-                      _singleColor = selected;
-                    }
-                  });
-                },
-                icon: const Icon(Icons.palette_outlined),
-                label: Text(t.addColor),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(t.colorCycle,
+                      style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 2),
+                  Text(
+                    _colorCycle ? t.multiColors : t.singleColor,
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 10),
-            OutlinedButton(
-              onPressed: () => update(() {
-                _cycleColors
-                  ..clear()
-                  ..addAll([Colors.blue, Colors.purple, Colors.red]);
-              }),
-              child: Text(t.resetColors),
+            Switch(
+              value: _colorCycle,
+              onChanged: (v) => update(() => _colorCycle = v),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 44,
+          child: Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    final selected = await _pickColorDialog(context);
+                    if (selected == null) return;
+                    update(() {
+                      if (_colorCycle) {
+                        _cycleColors.add(selected);
+                      } else {
+                        _singleColor = selected;
+                      }
+                    });
+                  },
+                  icon: const Icon(Icons.palette_outlined, size: 18),
+                  label: Text(t.addColor),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 92,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                  ),
+                  onPressed: () => update(() {
+                    _cycleColors
+                      ..clear()
+                      ..addAll([Colors.blue, Colors.purple, Colors.red]);
+                  }),
+                  child: Text(t.resetColors),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
         Wrap(
           spacing: 10,
-          runSpacing: 10,
+          runSpacing: 8,
           children: visibleColors.asMap().entries.map((entry) {
             final idx = entry.key;
             final c = entry.value;
@@ -1506,8 +1769,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               },
               borderRadius: BorderRadius.circular(10),
               child: Container(
-                width: 38,
-                height: 38,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: c,
                   borderRadius: BorderRadius.circular(10),
@@ -1520,24 +1783,88 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             );
           }).toList(),
         ),
-        const SizedBox(height: 16),
-        _labeledSlider(t.holdTime, _holdSeconds, 1, 15,
-            (v) => update(() => _holdSeconds = v)),
-        const SizedBox(height: 6),
-        Text(t.transition, style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 8),
-        SegmentedButton<ColorTransitionType>(
-          segments: [
-            ButtonSegment(value: ColorTransitionType.fade, label: Text(t.fade)),
-            ButtonSegment(
-                value: ColorTransitionType.slide, label: Text(t.slide)),
-          ],
-          selected: {_transitionType},
-          onSelectionChanged: (s) => update(() => _transitionType = s.first),
-        ),
         const SizedBox(height: 12),
-        _labeledSlider(t.transitionDuration, _transitionMs, 200, 2000,
-            (v) => update(() => _transitionMs = v)),
+        _buildColorWaveSlider(
+          label: t.holdTime,
+          value: _holdSeconds,
+          min: 1,
+          max: 15,
+          valueLabel: _holdSeconds.toStringAsFixed(2),
+          onChanged: (v) => update(() => _holdSeconds = v),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: Text(t.transition,
+                  style: Theme.of(context).textTheme.titleSmall),
+            ),
+            SizedBox(
+              width: 166,
+              child: SegmentedButton<ColorTransitionType>(
+                showSelectedIcon: false,
+                expandedInsets: EdgeInsets.zero,
+                segments: [
+                  ButtonSegment(
+                      value: ColorTransitionType.fade, label: Text(t.fade)),
+                  ButtonSegment(
+                      value: ColorTransitionType.slide, label: Text(t.slide)),
+                ],
+                selected: {_transitionType},
+                onSelectionChanged: (s) =>
+                    update(() => _transitionType = s.first),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _buildColorWaveSlider(
+          label: t.transitionDuration,
+          value: _transitionMs,
+          min: 200,
+          max: 2000,
+          valueLabel: _transitionMs.toStringAsFixed(0),
+          onChanged: (v) => update(() => _transitionMs = v),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildColorWaveSlider({
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required String valueLabel,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(label, style: Theme.of(context).textTheme.titleSmall),
+            ),
+            Text(valueLabel, style: const TextStyle(color: Colors.white70)),
+          ],
+        ),
+        SizedBox(
+          height: 30,
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 3,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+            ),
+            child: Slider(
+              value: value,
+              min: min,
+              max: max,
+              onChanged: onChanged,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -1565,6 +1892,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           'Dot size', _ledDotSize, 2, 8, (v) => update(() => _ledDotSize = v)),
       _labeledSlider('Dot spacing', _ledDotSpacing, 5, 12,
           (v) => update(() => _ledDotSpacing = v)),
+      DropdownButtonFormField<LedAnimation>(
+        value: _ledAnimation,
+        decoration: const InputDecoration(labelText: 'Animation'),
+        items: const [
+          DropdownMenuItem(value: LedAnimation.none, child: Text('None')),
+          DropdownMenuItem(value: LedAnimation.pulse, child: Text('Pulse')),
+          DropdownMenuItem(
+              value: LedAnimation.scrollLeft, child: Text('Scroll left')),
+          DropdownMenuItem(
+              value: LedAnimation.scrollRight, child: Text('Scroll right')),
+        ],
+        onChanged: (v) => update(() => _ledAnimation = v ?? LedAnimation.none),
+      ),
     ];
   }
 
@@ -1594,6 +1934,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           (v) => update(() => _eventFontScale = v)),
       _labeledSlider('Speed', _marqueeSpeed, 20, 200,
           (v) => update(() => _marqueeSpeed = v)),
+      const SizedBox(height: 8),
+      Text('Direction', style: Theme.of(context).textTheme.titleSmall),
+      const SizedBox(height: 8),
+      SegmentedButton<MotionDirection>(
+        segments: const [
+          ButtonSegment(
+              value: MotionDirection.rightToLeft, label: Text('Left')),
+          ButtonSegment(
+              value: MotionDirection.leftToRight, label: Text('Right')),
+        ],
+        selected: {_marqueeDirection},
+        onSelectionChanged: (s) => update(() => _marqueeDirection = s.first),
+      ),
     ];
   }
 
@@ -1604,11 +1957,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }) {
     return OutlinedButton(
       onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label),
-          _colorSwatch(color),
+          Expanded(child: Text(label)),
+          const SizedBox(width: 8),
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Theme.of(context).colorScheme.outline),
+            ),
+          ),
         ],
       ),
     );
@@ -1619,70 +1986,95 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     void Function(VoidCallback) update,
   ) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(t.textSize, style: Theme.of(context).textTheme.titleSmall),
-        Slider(
-          value: _airportFontScale,
-          min: 0.7,
-          max: 1.5,
-          divisions: 8,
-          label: _airportFontScale.toStringAsFixed(2),
-          onChanged: (v) => update(() => _airportFontScale = v),
-        ),
-        const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(
-              child: _buildColorButton(
-                label: t.textColor,
-                color: _airportTextColor,
-                onPressed: () async {
-                  final selected = await _pickColorDialog(context);
-                  if (selected != null) {
-                    update(() => _airportTextColor = selected);
-                  }
-                },
-              ),
+            IconButton.outlined(
+              key: const ValueKey('text-size-less'),
+              tooltip: '− ${t.textSize}',
+              onPressed: _airportFontScale <= 0.7
+                  ? null
+                  : () => update(() => _airportFontScale =
+                      (_airportFontScale - 0.05).clamp(0.7, 1.5)),
+              icon: const Icon(Icons.remove),
             ),
-            const SizedBox(width: 10),
             Expanded(
-              child: _buildColorButton(
-                label: t.backgroundColor,
-                color: _airportBackgroundColor,
-                onPressed: () async {
-                  final selected = await _pickColorDialog(context);
-                  if (selected != null) {
-                    update(() => _airportBackgroundColor = selected);
-                  }
-                },
-              ),
+                child: Center(
+                    child: Text('${(_airportFontScale * 100).round()} %'))),
+            IconButton.outlined(
+              key: const ValueKey('text-size-more'),
+              tooltip: '+ ${t.textSize}',
+              onPressed: _airportFontScale >= 1.5
+                  ? null
+                  : () => update(() => _airportFontScale =
+                      (_airportFontScale + 0.05).clamp(0.7, 1.5)),
+              icon: const Icon(Icons.add),
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          value: _airportBold,
-          onChanged: (v) => update(() => _airportBold = v),
-          title: const Text('Bold'),
+        const SizedBox(height: 8),
+        _buildColorButton(
+          label: t.textColor,
+          color: _airportTextColor,
+          onPressed: () async {
+            final selected = await _pickColorDialog(context);
+            if (selected != null) {
+              update(() => _airportTextColor = selected);
+            }
+          },
         ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          value: _airportShowIcon,
-          onChanged: (v) => update(() => _airportShowIcon = v),
-          title: const Text('Airport icon'),
+        const SizedBox(height: 8),
+        const SizedBox(height: 12),
+        SegmentedButton<String>(
+          key: const ValueKey('text-formatting'),
+          multiSelectionEnabled: true,
+          emptySelectionAllowed: true,
+          showSelectedIcon: false,
+          expandedInsets: EdgeInsets.zero,
+          segments: [
+            ButtonSegment(
+                value: 'bold',
+                tooltip: t.boldText,
+                icon: const Icon(Icons.format_bold)),
+            ButtonSegment(
+                value: 'italic',
+                tooltip: t.italicText,
+                icon: const Icon(Icons.format_italic)),
+            ButtonSegment(
+                value: 'underline',
+                tooltip: t.underlineText,
+                icon: const Icon(Icons.format_underlined)),
+          ],
+          selected: {
+            if (_airportBold) 'bold',
+            if (_airportItalic) 'italic',
+            if (_airportUnderline) 'underline',
+          },
+          onSelectionChanged: (values) => update(() {
+            _airportBold = values.contains('bold');
+            _airportItalic = values.contains('italic');
+            _airportUnderline = values.contains('underline');
+          }),
         ),
         const SizedBox(height: 8),
         SegmentedButton<TextAlign>(
           showSelectedIcon: false,
-          segments: const [
+          expandedInsets: EdgeInsets.zero,
+          segments: [
             ButtonSegment(
-                value: TextAlign.left, icon: Icon(Icons.format_align_left)),
+                value: TextAlign.left,
+                tooltip: t.alignLeft,
+                icon: const Icon(Icons.format_align_left)),
             ButtonSegment(
-                value: TextAlign.center, icon: Icon(Icons.format_align_center)),
+                value: TextAlign.center,
+                tooltip: t.alignCenter,
+                icon: const Icon(Icons.format_align_center)),
             ButtonSegment(
-                value: TextAlign.right, icon: Icon(Icons.format_align_right)),
+                value: TextAlign.right,
+                tooltip: t.alignRight,
+                icon: const Icon(Icons.format_align_right)),
           ],
           selected: {_airportTextAlign},
           onSelectionChanged: (s) => update(() => _airportTextAlign = s.first),
@@ -1691,6 +2083,102 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildColorWaveTextControls(
+    AppLocalizations t,
+    void Function(VoidCallback) update,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(t.textSize, style: Theme.of(context).textTheme.titleSmall),
+        Row(
+          children: [
+            IconButton.outlined(
+              key: const ValueKey('color-wave-text-size-less'),
+              tooltip: '− ${t.textSize}',
+              onPressed: _airportFontScale <= 0.7
+                  ? null
+                  : () => update(() => _airportFontScale =
+                      (_airportFontScale - 0.05).clamp(0.7, 1.5)),
+              icon: const Icon(Icons.remove),
+            ),
+            Expanded(
+              child: Center(
+                child: Text('${(_airportFontScale * 100).round()} %'),
+              ),
+            ),
+            IconButton.outlined(
+              key: const ValueKey('color-wave-text-size-more'),
+              tooltip: '+ ${t.textSize}',
+              onPressed: _airportFontScale >= 1.5
+                  ? null
+                  : () => update(() => _airportFontScale =
+                      (_airportFontScale + 0.05).clamp(0.7, 1.5)),
+              icon: const Icon(Icons.add),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SegmentedButton<String>(
+          key: const ValueKey('color-wave-text-formatting'),
+          multiSelectionEnabled: true,
+          emptySelectionAllowed: true,
+          showSelectedIcon: false,
+          expandedInsets: EdgeInsets.zero,
+          segments: [
+            ButtonSegment(
+                value: 'bold',
+                tooltip: t.boldText,
+                icon: const Icon(Icons.format_bold)),
+            ButtonSegment(
+                value: 'italic',
+                tooltip: t.italicText,
+                icon: const Icon(Icons.format_italic)),
+            ButtonSegment(
+                value: 'underline',
+                tooltip: t.underlineText,
+                icon: const Icon(Icons.format_underlined)),
+          ],
+          selected: {
+            if (_airportBold) 'bold',
+            if (_airportItalic) 'italic',
+            if (_airportUnderline) 'underline',
+          },
+          onSelectionChanged: (values) => update(() {
+            _airportBold = values.contains('bold');
+            _airportItalic = values.contains('italic');
+            _airportUnderline = values.contains('underline');
+          }),
+        ),
+        const SizedBox(height: 8),
+        SegmentedButton<TextAlign>(
+          key: const ValueKey('color-wave-text-alignment'),
+          showSelectedIcon: false,
+          expandedInsets: EdgeInsets.zero,
+          segments: [
+            ButtonSegment(
+                value: TextAlign.left,
+                tooltip: t.alignLeft,
+                icon: const Icon(Icons.format_align_left)),
+            ButtonSegment(
+                value: TextAlign.center,
+                tooltip: t.alignCenter,
+                icon: const Icon(Icons.format_align_center)),
+            ButtonSegment(
+                value: TextAlign.right,
+                tooltip: t.alignRight,
+                icon: const Icon(Icons.format_align_right)),
+          ],
+          selected: {_airportTextAlign},
+          onSelectionChanged: (s) => update(() => _airportTextAlign = s.first),
+        ),
+      ],
+    );
+  }
+
+  // Kept for the expanded concert editor layout; the current UX uses the
+  // simplified "Edit Concert Style" popup.
+  // ignore: unused_element
   Widget _buildConcertOptions(AppLocalizations t) {
     return Column(
       children: [
@@ -1984,26 +2472,88 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ),
         const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-          decoration: BoxDecoration(
-            color: (_isPro ? accent : Colors.white).withOpacity(0.14),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(
-              color: _isPro ? accent.withOpacity(0.75) : Colors.white24,
-            ),
-          ),
-          child: Text(
-            _isPro ? 'PRO' : 'FREE',
-            style: TextStyle(
-              color: _isPro ? accent : Colors.white70,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.4,
+            onTap: () async {
+              await AnalyticsService.logPaywallOpen(source: 'plan_badge');
+              if (!mounted) return;
+              await context.push('/paywall');
+              await _loadState();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: (_isPro ? accent : Colors.white).withOpacity(0.14),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: _isPro ? accent.withOpacity(0.75) : Colors.white24,
+                ),
+              ),
+              child: Text(
+                _isPro ? 'PRO' : 'FREE',
+                style: TextStyle(
+                  color: _isPro ? accent : Colors.white70,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.4,
+                ),
+              ),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildModeDockItem(AppLocalizations t, HomeMode mode) {
+    final label = switch (mode) {
+      HomeMode.airport => t.airportPickup,
+      HomeMode.event => t.concertEvent,
+      HomeMode.colorWave => t.colorWave,
+      HomeMode.handwriting => 'Handwriting',
+      HomeMode.logo => t.logo,
+    };
+    final icon = switch (mode) {
+      HomeMode.airport => Icons.flight,
+      HomeMode.event => Icons.mic_none,
+      HomeMode.colorWave => Icons.palette_outlined,
+      HomeMode.handwriting => Icons.draw_outlined,
+      HomeMode.logo => Icons.image_outlined,
+    };
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Semantics(
+        selected: _homeMode == mode,
+        child: Material(
+          color: _homeMode == mode
+              ? Theme.of(context).colorScheme.secondaryContainer
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(18),
+          child: KeyedSubtree(
+            key: _modeItemKeys[mode],
+            child: InkWell(
+              key: ValueKey('mode-${mode.name}'),
+              borderRadius: BorderRadius.circular(18),
+              onTap: () => _handleModeChanged(mode),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 24),
+                    const SizedBox(height: 4),
+                    Text(label, style: Theme.of(context).textTheme.labelSmall),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -2054,50 +2604,112 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildHandwritingPad({
     required VoidCallback refresh,
-    double aspectRatio = 2.4,
+    double? aspectRatio = 2.4,
+    Key? key,
+    GlobalKey? captureKey,
   }) {
-    return AspectRatio(
-      aspectRatio: aspectRatio,
-      child: GestureDetector(
-        onPanStart: (details) {
+    final pad = LayoutBuilder(
+      builder: (context, constraints) {
+        final padSize = Size(constraints.maxWidth, constraints.maxHeight);
+
+        Offset clampPoint(Offset point) {
+          return Offset(
+            point.dx.clamp(0.0, padSize.width),
+            point.dy.clamp(0.0, padSize.height),
+          );
+        }
+
+        void startStroke(Offset point) {
           setState(() {
-            _handwritingStrokes.add([details.localPosition]);
+            _recordHandwritingChange();
+            final strokes = _activeLayer.strokes
+                .map((stroke) => List<Offset>.from(stroke))
+                .toList(growable: true);
+            strokes.add([clampPoint(point)]);
+            _replaceActiveHandwritingLayer(
+              _activeLayer.copyWith(strokes: strokes),
+            );
           });
           refresh();
-        },
-        onPanUpdate: (details) {
-          if (_handwritingStrokes.isEmpty) return;
+        }
+
+        void addPoint(Offset point) {
+          if (_activeLayer.strokes.isEmpty) return;
           setState(() {
-            _handwritingStrokes.last.add(details.localPosition);
+            final strokes = _activeLayer.strokes
+                .map((stroke) => List<Offset>.from(stroke))
+                .toList(growable: true);
+            strokes.last.add(clampPoint(point));
+            _replaceActiveHandwritingLayer(
+              _activeLayer.copyWith(strokes: strokes),
+            );
           });
           refresh();
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.black,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.65),
+        }
+
+        return RawGestureDetector(
+          gestures: <Type, GestureRecognizerFactory>{
+            EagerGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<EagerGestureRecognizer>(
+              () => EagerGestureRecognizer(),
+              (recognizer) {},
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.22),
-                blurRadius: 22,
+          },
+          child: Listener(
+            behavior: HitTestBehavior.opaque,
+            onPointerDown: (event) => startStroke(event.localPosition),
+            onPointerMove: (event) => addPoint(event.localPosition),
+            child: Container(
+              key: key,
+              decoration: BoxDecoration(
+                color: _handwritingBackgroundColor,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color:
+                      Theme.of(context).colorScheme.primary.withOpacity(0.65),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color:
+                        Theme.of(context).colorScheme.primary.withOpacity(0.22),
+                    blurRadius: 22,
+                  ),
+                ],
               ),
-            ],
+              clipBehavior: Clip.antiAlias,
+              child: captureKey == null
+                  ? HandwritingSign(
+                      layers: _copyHandwritingLayers(),
+                      color: _handwritingColor,
+                      strokeWidth: _handwritingStrokeWidth,
+                      style: _handwritingStyle,
+                      emptyLabel: 'Handwriting display',
+                      preview: true,
+                      fitToContent: false,
+                    )
+                  : RepaintBoundary(
+                      key: captureKey,
+                      child: ColoredBox(
+                        color: _handwritingBackgroundColor,
+                        child: HandwritingSign(
+                          layers: _copyHandwritingLayers(),
+                          color: _handwritingColor,
+                          strokeWidth: _handwritingStrokeWidth,
+                          style: _handwritingStyle,
+                          emptyLabel: 'Handwriting display',
+                          preview: true,
+                          fitToContent: false,
+                        ),
+                      ),
+                    ),
+            ),
           ),
-          clipBehavior: Clip.antiAlias,
-          child: HandwritingSign(
-            strokes: _handwritingStrokes,
-            color: _handwritingColor,
-            strokeWidth: _handwritingStrokeWidth,
-            style: _handwritingStyle,
-            emptyLabel: 'Write here',
-            preview: true,
-          ),
-        ),
-      ),
+        );
+      },
     );
+    return aspectRatio == null
+        ? pad
+        : AspectRatio(aspectRatio: aspectRatio, child: pad);
   }
 
   String _handwritingStyleLabel(HandwritingStrokeStyle style) {
@@ -2106,90 +2718,457 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       HandwritingStrokeStyle.marker => 'Marker',
       HandwritingStrokeStyle.neon => 'Neon',
       HandwritingStrokeStyle.chalk => 'Chalk',
+      HandwritingStrokeStyle.fire => 'Fire',
     };
   }
 
-  Future<void> _openHandwritingEditor() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF0D1018),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+  Widget _buildHandwritingLayerSelector({
+    required void Function(VoidCallback fn) update,
+  }) {
+    final accent = Theme.of(context).colorScheme.primary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
       ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, modalSetState) {
-            void update(VoidCallback fn) {
-              setState(fn);
-              modalSetState(() {});
-            }
-
-            return SingleChildScrollView(
-              padding: EdgeInsets.only(
-                left: 18,
-                right: 18,
-                top: 16,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 18,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Layers',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.72),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(width: 6),
+          for (var i = 0; i < _handwritingLayers.length; i++) ...[
+            SizedBox(
+              width: 30,
+              height: 34,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  backgroundColor: i == _activeHandwritingLayer
+                      ? accent.withOpacity(0.32)
+                      : Colors.white.withOpacity(0.05),
+                  side: BorderSide(
+                    color: i == _activeHandwritingLayer
+                        ? accent
+                        : Colors.white.withOpacity(0.22),
+                    width: i == _activeHandwritingLayer ? 1.7 : 1,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                ),
+                onPressed: () => update(() => _selectHandwritingLayer(i)),
+                child: Text(
+                  '${i + 1}',
+                  style: TextStyle(
+                    color: i == _activeHandwritingLayer
+                        ? Colors.white
+                        : Colors.white70,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+            ),
+            if (i != _handwritingLayers.length - 1) const SizedBox(width: 4),
+          ],
+          if (_handwritingLayers.length < _maxHandwritingLayers) ...[
+            const SizedBox(width: 6),
+            SizedBox(
+              width: 30,
+              height: 34,
+              child: OutlinedButton(
+                key: const ValueKey('add-handwriting-layer'),
+                style: OutlinedButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                ),
+                onPressed: () => update(_addHandwritingLayer),
+                child: const Icon(Icons.add_rounded, size: 18),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHandwritingBackgroundButton({
+    required void Function(VoidCallback fn) update,
+    bool compact = false,
+  }) {
+    return SizedBox(
+      height: 44,
+      child: OutlinedButton(
+        key: const ValueKey('handwriting-background-color'),
+        style: compact
+            ? OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              )
+            : null,
+        onPressed: () async {
+          final color = await _pickColorDialog(context);
+          if (color == null) return;
+          update(() => _handwritingBackgroundColor = color);
+        },
+        child: compact
+            ? FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: _handwritingBackgroundColor,
+                        borderRadius: BorderRadius.circular(7),
+                        border: Border.all(color: Colors.white38),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('Background'),
+                  ],
+                ),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.draw_outlined),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Handwriting',
-                          style: Theme.of(context).textTheme.titleLarge,
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: _handwritingBackgroundColor,
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(color: Colors.white38),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Background'),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildHandwritingHistoryControls({
+    required void Function(VoidCallback fn) update,
+    bool iconOnly = false,
+    bool includeClear = false,
+  }) {
+    if (iconOnly) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Tooltip(
+            message: 'Undo',
+            child: SizedBox(
+              width: 52,
+              height: 44,
+              child: OutlinedButton(
+                key: const ValueKey('handwriting-undo'),
+                style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
+                onPressed: _handwritingUndoStack.isEmpty
+                    ? null
+                    : () => update(_undoHandwriting),
+                child: const Icon(Icons.undo_rounded, size: 20),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Tooltip(
+            message: 'Redo',
+            child: SizedBox(
+              width: 52,
+              height: 44,
+              child: OutlinedButton(
+                key: const ValueKey('handwriting-redo'),
+                style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
+                onPressed: _handwritingRedoStack.isEmpty
+                    ? null
+                    : () => update(_redoHandwriting),
+                child: const Icon(Icons.redo_rounded, size: 20),
+              ),
+            ),
+          ),
+          if (includeClear) ...[
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                key: const ValueKey('clear-handwriting-layer'),
+                onPressed: _activeLayer.isEmpty
+                    ? null
+                    : () => update(() {
+                          _recordHandwritingChange();
+                          _replaceActiveHandwritingLayer(
+                            _activeLayer.copyWith(
+                              strokes: const <List<Offset>>[],
+                            ),
+                          );
+                        }),
+                icon: const Icon(Icons.backspace_outlined, size: 18),
+                label: Text('Clear ${_activeHandwritingLayer + 1}'),
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            key: const ValueKey('handwriting-undo'),
+            onPressed: _handwritingUndoStack.isEmpty
+                ? null
+                : () => update(_undoHandwriting),
+            icon: const Icon(Icons.undo_rounded, size: 18),
+            label: const Text('Undo'),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: OutlinedButton.icon(
+            key: const ValueKey('handwriting-redo'),
+            onPressed: _handwritingRedoStack.isEmpty
+                ? null
+                : () => update(_redoHandwriting),
+            icon: const Icon(Icons.redo_rounded, size: 18),
+            label: const Text('Redo'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHandwritingPreviewCanvas({
+    Key? key,
+    GlobalKey? captureKey,
+  }) {
+    final sign = HandwritingSign(
+      layers: _copyHandwritingLayers(),
+      color: _handwritingColor,
+      strokeWidth: _handwritingStrokeWidth,
+      style: _handwritingStyle,
+      emptyLabel: 'Handwriting display',
+      preview: true,
+    );
+    return Container(
+      key: key,
+      decoration: BoxDecoration(
+        color: _handwritingBackgroundColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withOpacity(0.65),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.22),
+            blurRadius: 22,
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: captureKey == null
+          ? sign
+          : RepaintBoundary(
+              key: captureKey,
+              child: ColoredBox(
+                color: _handwritingBackgroundColor,
+                child: sign,
+              ),
+            ),
+    );
+  }
+
+  Widget _buildNarrowHandwritingLayout(
+    AppLocalizations t,
+    BoxConstraints constraints,
+    bool showRotateHint,
+  ) {
+    final chromeHeight = showRotateHint ? 260.0 : 150.0;
+    final previewHeight =
+        (constraints.maxHeight - chromeHeight).clamp(140.0, 250.0).toDouble();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: previewHeight,
+            child: _buildHandwritingPreviewCanvas(
+              key: const ValueKey('narrow-handwriting-preview'),
+              captureKey: _createdImageKey,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 52,
+            child: FilledButton.icon(
+              key: const ValueKey('edit-handwriting'),
+              onPressed: _openHandwritingEditor,
+              icon: const Icon(Icons.draw_outlined),
+              label: const Text('Edit Handwriting'),
+            ),
+          ),
+          if (showRotateHint) ...[
+            const SizedBox(height: 10),
+            _buildPersistentRotateHint(t),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  key: const ValueKey('show-sign'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 52),
+                  ),
+                  onPressed: _showSign,
+                  icon: const Icon(Icons.fullscreen),
+                  label: Text(t.show),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Tooltip(
+                message: 'Share image',
+                child: SizedBox(
+                  width: 54,
+                  height: 52,
+                  child: FilledButton(
+                    key: const ValueKey('share-created-image'),
+                    style: FilledButton.styleFrom(padding: EdgeInsets.zero),
+                    onPressed: _hasHandwriting ? _shareCreatedImage : null,
+                    child: const Icon(Icons.ios_share),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWideHandwritingLayout(
+    AppLocalizations t,
+    BoxConstraints constraints,
+  ) {
+    final panelWidth = constraints.maxWidth < 750 ? 280.0 : 320.0;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _buildHandwritingPad(
+                    key: const ValueKey('wide-handwriting-canvas'),
+                    refresh: () {},
+                    aspectRatio: null,
+                    captureKey: _createdImageKey,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        key: const ValueKey('show-sign'),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 52),
+                        ),
+                        onPressed: _showSign,
+                        icon: const Icon(Icons.fullscreen),
+                        label: Text(t.show),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Tooltip(
+                      message: 'Share image',
+                      child: SizedBox(
+                        width: 54,
+                        height: 52,
+                        child: FilledButton(
+                          key: const ValueKey('share-created-image'),
+                          style: FilledButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                          ),
+                          onPressed:
+                              _hasHandwriting ? _shareCreatedImage : null,
+                          child: const Icon(Icons.ios_share),
                         ),
                       ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    height: 140,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withOpacity(0.55),
-                      ),
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: HandwritingSign(
-                      strokes: _handwritingStrokes,
-                      color: _handwritingColor,
-                      strokeWidth: _handwritingStrokeWidth,
-                      style: _handwritingStyle,
-                      emptyLabel: 'Preview',
-                      preview: true,
-                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          SizedBox(
+            width: panelWidth,
+            child: _buildWideHandwritingPanel(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWideHandwritingPanel() {
+    return Material(
+      key: const ValueKey('wide-handwriting-panel'),
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Align(
+                    alignment: Alignment.center,
+                    child: _buildHandwritingLayerSelector(update: setState),
                   ),
-                  const SizedBox(height: 14),
-                  _buildHandwritingPad(
-                    refresh: () => modalSetState(() {}),
-                    aspectRatio: 1.9,
-                  ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
+                  _buildHandwritingHistoryControls(update: setState),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: _handwritingStrokes.isEmpty
+                          onPressed: _activeLayer.isEmpty
                               ? null
-                              : () => update(_handwritingStrokes.clear),
-                          icon: const Icon(Icons.backspace_outlined),
-                          label: const Text('Clear'),
+                              : () => setState(
+                                    () {
+                                      _recordHandwritingChange();
+                                      _replaceActiveHandwritingLayer(
+                                        _activeLayer.copyWith(
+                                          strokes: const <List<Offset>>[],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                          icon: const Icon(Icons.backspace_outlined, size: 18),
+                          label: Text('Clear ${_activeHandwritingLayer + 1}'),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -2198,20 +3177,36 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           onPressed: () async {
                             final color = await _pickColorDialog(context);
                             if (color == null) return;
-                            update(() => _handwritingColor = color);
+                            setState(
+                              () {
+                                _recordHandwritingChange();
+                                _replaceActiveHandwritingLayer(
+                                  _activeLayer.copyWith(color: color),
+                                );
+                              },
+                            );
                           },
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              _colorSwatch(_handwritingColor),
-                              const SizedBox(width: 10),
-                              const Text('Ink color'),
+                              Container(
+                                width: 22,
+                                height: 22,
+                                decoration: BoxDecoration(
+                                  color: _handwritingColor,
+                                  borderRadius: BorderRadius.circular(7),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('Ink'),
                             ],
                           ),
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  _buildHandwritingBackgroundButton(update: setState),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<HandwritingStrokeStyle>(
                     value: _handwritingStyle,
@@ -2225,7 +3220,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     }).toList(),
                     onChanged: (style) {
                       if (style == null) return;
-                      update(() => _handwritingStyle = style);
+                      setState(
+                        () => _replaceActiveHandwritingLayer(
+                          _activeLayer.copyWith(style: style),
+                        ),
+                      );
                     },
                   ),
                   const SizedBox(height: 12),
@@ -2234,30 +3233,198 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     _handwritingStrokeWidth,
                     4,
                     22,
-                    (v) => update(() => _handwritingStrokeWidth = v),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 52,
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text('Done'),
+                    (v) => setState(
+                      () => _replaceActiveHandwritingLayer(
+                        _activeLayer.copyWith(strokeWidth: v),
+                      ),
                     ),
                   ),
                 ],
               ),
-            );
-          },
-        );
-      },
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _openHandwritingEditor() async {
+    _narrowHandwritingEditorOpen = true;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useRootNavigator: true,
+        useSafeArea: true,
+        enableDrag: false,
+        backgroundColor: const Color(0xFF0D1018),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        builder: (ctx) {
+          return StatefulBuilder(
+            builder: (ctx, modalSetState) {
+              if (MediaQuery.sizeOf(ctx).width >= 600 &&
+                  !_narrowHandwritingEditorCloseScheduled) {
+                _narrowHandwritingEditorCloseScheduled = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _narrowHandwritingEditorOpen) {
+                    Navigator.of(ctx, rootNavigator: true).pop();
+                  }
+                });
+              }
+
+              void update(VoidCallback fn) {
+                setState(fn);
+                modalSetState(() {});
+              }
+
+              return SizedBox(
+                key: const ValueKey('narrow-handwriting-editor'),
+                height: MediaQuery.sizeOf(ctx).height * 0.94,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 12, 8, 8),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.draw_outlined),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Handwriting',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Divider(
+                      height: 1,
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+                        children: [
+                          _buildHandwritingPad(
+                            key: const ValueKey('narrow-handwriting-canvas'),
+                            refresh: () => modalSetState(() {}),
+                            aspectRatio: 1.35,
+                          ),
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.center,
+                            child:
+                                _buildHandwritingLayerSelector(update: update),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildHandwritingHistoryControls(
+                            update: update,
+                            iconOnly: true,
+                            includeClear: true,
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  key: const ValueKey('handwriting-ink-color'),
+                                  onPressed: () async {
+                                    final color =
+                                        await _pickColorDialog(context);
+                                    if (color == null) return;
+                                    update(() {
+                                      _recordHandwritingChange();
+                                      _replaceActiveHandwritingLayer(
+                                        _activeLayer.copyWith(color: color),
+                                      );
+                                    });
+                                  },
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        width: 22,
+                                        height: 22,
+                                        decoration: BoxDecoration(
+                                          color: _handwritingColor,
+                                          borderRadius:
+                                              BorderRadius.circular(7),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Text('Ink'),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _buildHandwritingBackgroundButton(
+                                  update: update,
+                                  compact: true,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<HandwritingStrokeStyle>(
+                            value: _handwritingStyle,
+                            decoration: const InputDecoration(
+                                labelText: 'Scribble style'),
+                            items: HandwritingStrokeStyle.values.map((style) {
+                              return DropdownMenuItem(
+                                value: style,
+                                child: Text(_handwritingStyleLabel(style)),
+                              );
+                            }).toList(),
+                            onChanged: (style) {
+                              if (style == null) return;
+                              update(
+                                () => _replaceActiveHandwritingLayer(
+                                  _activeLayer.copyWith(style: style),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          _labeledSlider(
+                            'Line size',
+                            _handwritingStrokeWidth,
+                            4,
+                            22,
+                            (v) => update(
+                              () => _replaceActiveHandwritingLayer(
+                                _activeLayer.copyWith(strokeWidth: v),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      _narrowHandwritingEditorOpen = false;
+      _narrowHandwritingEditorCloseScheduled = false;
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tipController.dispose();
     _wiggleController.dispose();
-    _colorWavePreviewController.dispose();
     _proSub?.cancel();
     _airportController.dispose();
     _eventController.dispose();
@@ -2278,12 +3445,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       });
     }
 
-    final isTextMode =
-        _homeMode == HomeMode.airport || _homeMode == HomeMode.event;
+    final usesInlineEditor =
+        _homeMode == HomeMode.airport || _homeMode == HomeMode.colorWave;
     final isHandwritingMode = _homeMode == HomeMode.handwriting;
     final isLogoMode = _homeMode == HomeMode.logo;
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: _buildBrandTitle(),
         actions: [
@@ -2301,261 +3469,349 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ],
       ),
-      body: Stack(
-        children: [
-          CustomScrollView(
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.all(16),
-                sliver: SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (_loading)
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 12),
-                          child: LinearProgressIndicator(),
-                        ),
-                      _buildLivePreview(t),
-                      const SizedBox(height: 14),
-                      Card(
-                        color: const Color(0xFF11131C).withOpacity(0.9),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(22),
-                          side:
-                              BorderSide(color: Colors.white.withOpacity(0.08)),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: ModeSelector(
-                            value: _homeMode,
-                            onChanged: _applyHomeMode,
-                            airportLabel: t.airportPickup,
-                            eventLabel: t.concertEvent,
-                            colorWaveLabel: t.colorWave,
-                            handwritingLabel: 'Handwriting',
-                            logoLabel: t.logo,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      if (isHandwritingMode) ...[
-                        SizedBox(
-                          height: 54,
-                          child: FilledButton.icon(
-                            onPressed: _openHandwritingEditor,
-                            icon: const Icon(Icons.draw_outlined),
-                            label: const Text('Edit Handwriting'),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                      ],
-                      if (isLogoMode)
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(14),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(t.logoTitle,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium),
-                                const SizedBox(height: 6),
-                                Text(t.logoSubtitle,
-                                    style:
-                                        const TextStyle(color: Colors.white70)),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: FilledButton.icon(
-                                        onPressed: _pickLogo,
-                                        icon: const Icon(Icons.upload_file),
-                                        label: Text(t.uploadLogo),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: FilledButton.icon(
-                                        onPressed: _pickMultipleLogos,
-                                        icon: const Icon(
-                                            Icons.photo_library_outlined),
-                                        label: const Text('Multiple images'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: OutlinedButton.icon(
-                                        onPressed: (_logoPath == null)
-                                            ? null
-                                            : _removeLogo,
-                                        icon: const Icon(Icons.delete_outline),
-                                        label: Text(t.removeLogo),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: OutlinedButton.icon(
-                                        onPressed: (_logoPath == null)
-                                            ? null
-                                            : _showLogoDetails,
-                                        icon: const Icon(Icons.info_outline),
-                                        label: const Text('View details'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white10,
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: Colors.white24),
-                                  ),
-                                  child: (_logoPath == null || !_logoExistsSync)
-                                      ? Text(t.noLogoSaved,
-                                          style: const TextStyle(
-                                              color: Colors.white70))
-                                      : Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(t.logoPreview,
-                                                style: const TextStyle(
-                                                    color: Colors.white70)),
-                                            const SizedBox(height: 10),
-                                            Center(
-                                              child: SizedBox(
-                                                height: 140,
-                                                child: Image.file(
-                                                  File(_logoPath!),
-                                                  fit: BoxFit.contain,
-                                                  errorBuilder: (_, __, ___) =>
-                                                      Text(
-                                                    t.logoLoadError,
-                                                    style: const TextStyle(
-                                                        color: Colors.white70),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              _logoPaths.length <= 1
-                                                  ? '1 image uploaded'
-                                                  : '${_logoPaths.length} images uploaded',
-                                              style: const TextStyle(
-                                                  color: Colors.white70),
-                                            ),
-                                          ],
-                                        ),
-                                ),
-                                const SizedBox(height: 12),
-                                SwitchListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  value: _logoRotation,
-                                  onChanged: (_logoPaths.length <= 1)
-                                      ? null
-                                      : (v) =>
-                                          setState(() => _logoRotation = v),
-                                  title: const Text('Rotate images'),
-                                  subtitle: const Text(
-                                    'Cycles through multiple uploaded images.',
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                DropdownButtonFormField<LogoTransitionEffect>(
-                                  value: _logoEffect,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Logo effect',
-                                  ),
-                                  items: const [
-                                    DropdownMenuItem(
-                                      value: LogoTransitionEffect.fade,
-                                      child: Text('Fade'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: LogoTransitionEffect.slide,
-                                      child: Text('Slide'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: LogoTransitionEffect.zoom,
-                                      child: Text('Zoom'),
-                                    ),
-                                  ],
-                                  onChanged: (v) => setState(() => _logoEffect =
-                                      v ?? LogoTransitionEffect.fade),
-                                ),
-                                const SizedBox(height: 12),
-                                _labeledSlider(
-                                  'Time per image',
-                                  _logoHoldSeconds,
-                                  0.5,
-                                  5,
-                                  (v) => setState(() => _logoHoldSeconds = v),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 24),
-                      if (isTextMode) ...[
-                        SizedBox(
-                          height: 52,
-                          child: FilledButton(
-                            onPressed: () => _openTextEditor(t),
-                            child: const Text('Enter New Text'),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                      if (_homeMode == HomeMode.event) ...[
-                        SizedBox(
-                          height: 52,
-                          child: FilledButton(
-                            onPressed: _openConcertPreviewPopup,
-                            child: const Text('Edit Concert Style'),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                      if (_homeMode == HomeMode.colorWave) ...[
-                        SizedBox(
-                          height: 52,
-                          child: FilledButton(
-                            onPressed: () => _openColorWaveStylePopup(t),
-                            child: const Text('Edit ColorWave Style'),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                      SizedBox(
-                        height: 56,
-                        child: FilledButton.icon(
-                          onPressed: _showSign,
-                          icon: const Icon(Icons.fullscreen),
-                          label: Text(t.show),
-                        ),
-                      ),
-                      if (isPortrait && _persistentRotateHint)
-                        _buildPersistentRotateHint(t),
-                      const SizedBox(height: 14),
+      bottomNavigationBar: Visibility(
+        visible: !(usesInlineEditor &&
+            _compactEditorOpen &&
+            MediaQuery.sizeOf(context).width < 600),
+        maintainState: true,
+        child: SafeArea(
+          top: false,
+          bottom: _isPro,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+            child: Center(
+              heightFactor: 1,
+              child: SizedBox(
+                width: double.infinity,
+                child: Container(
+                  key: const ValueKey('mode-dock'),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant),
+                    boxShadow: const [
+                      BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 16,
+                          offset: Offset(0, 4))
                     ],
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, dockConstraints) {
+                      final items = HomeMode.values;
+                      // On an open Duo every mode gets the same clear tap area.
+                      // On the closed phone we retain the scrollable dock and
+                      // its animated edge guidance for the remaining modes.
+                      if (dockConstraints.maxWidth >= 600) {
+                        return Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Row(
+                            children: [
+                              for (final mode in items)
+                                Expanded(child: _buildModeDockItem(t, mode)),
+                            ],
+                          ),
+                        );
+                      }
+                      return ScrollableModeDock(
+                        key: const ValueKey('animated-mode-dock'),
+                        selectedItemKey: _modeItemKeys[_homeMode],
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final mode in items)
+                              _buildModeDockItem(t, mode),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
-            ],
+            ),
           ),
-          if (_tipVisible) Positioned.fill(child: _buildRotateBubble(t)),
-        ],
+        ),
       ),
+      body: LayoutBuilder(builder: (context, constraints) {
+        if (isHandwritingMode) {
+          if (constraints.maxWidth >= 600) {
+            return _buildWideHandwritingLayout(t, constraints);
+          }
+          return _buildNarrowHandwritingLayout(
+            t,
+            constraints,
+            isPortrait && _persistentRotateHint,
+          );
+        }
+        final sidePanel = usesInlineEditor && constraints.maxWidth >= 600;
+        if (usesInlineEditor && !sidePanel) {
+          return _buildCompactTextLayout(t, constraints);
+        }
+        final panelWidth = constraints.maxWidth < 750 ? 280.0 : 320.0;
+        final previewHeight = usesInlineEditor
+            ? (constraints.maxHeight - 80).clamp(100.0, 650.0)
+            : (constraints.maxHeight * 0.42).clamp(110.0, 240.0);
+        final horizontalPadding = constraints.maxWidth > 992
+            ? (constraints.maxWidth - 960) / 2
+            : 16.0;
+        return Stack(
+          children: [
+            CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(horizontalPadding, 12,
+                      sidePanel ? panelWidth + 32 : horizontalPadding, 80),
+                  sliver: SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildLivePreview(
+                          t,
+                          height: previewHeight,
+                          captureKey: _createdImageKey,
+                        ),
+                        if (_loading)
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 12),
+                            child: LinearProgressIndicator(),
+                          ),
+                        const SizedBox(height: 12),
+                        if (isHandwritingMode) ...[
+                          SizedBox(
+                            height: 54,
+                            child: FilledButton.icon(
+                              onPressed: _openHandwritingEditor,
+                              icon: const Icon(Icons.draw_outlined),
+                              label: const Text('Edit Handwriting'),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                        if (isLogoMode)
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(t.logoTitle,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium),
+                                  const SizedBox(height: 6),
+                                  Text(t.logoSubtitle,
+                                      style: const TextStyle(
+                                          color: Colors.white70)),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: FilledButton.icon(
+                                          onPressed: _pickLogo,
+                                          icon: const Icon(Icons.upload_file),
+                                          label: Text(t.uploadLogo),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: FilledButton.icon(
+                                          onPressed: _pickMultipleLogos,
+                                          icon: const Icon(
+                                              Icons.photo_library_outlined),
+                                          label: const Text('Multiple images'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: (_logoPath == null)
+                                              ? null
+                                              : _removeLogo,
+                                          icon:
+                                              const Icon(Icons.delete_outline),
+                                          label: Text(t.removeLogo),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: (_logoPath == null)
+                                              ? null
+                                              : _showLogoDetails,
+                                          icon: const Icon(Icons.info_outline),
+                                          label: const Text('View details'),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white10,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: Colors.white24),
+                                    ),
+                                    child: (_logoPath == null ||
+                                            !_logoExistsSync)
+                                        ? Text(t.noLogoSaved,
+                                            style: const TextStyle(
+                                                color: Colors.white70))
+                                        : Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(t.logoPreview,
+                                                  style: const TextStyle(
+                                                      color: Colors.white70)),
+                                              const SizedBox(height: 10),
+                                              Center(
+                                                child: SizedBox(
+                                                  height: 140,
+                                                  child: Image.file(
+                                                    File(_logoPath!),
+                                                    fit: BoxFit.contain,
+                                                    errorBuilder:
+                                                        (_, __, ___) => Text(
+                                                      t.logoLoadError,
+                                                      style: const TextStyle(
+                                                          color:
+                                                              Colors.white70),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                _logoPaths.length <= 1
+                                                    ? '1 image uploaded'
+                                                    : '${_logoPaths.length} images uploaded',
+                                                style: const TextStyle(
+                                                    color: Colors.white70),
+                                              ),
+                                            ],
+                                          ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  SwitchListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    value: _logoRotation,
+                                    onChanged: (_logoPaths.length <= 1)
+                                        ? null
+                                        : (v) =>
+                                            setState(() => _logoRotation = v),
+                                    title: const Text('Rotate images'),
+                                    subtitle: const Text(
+                                      'Cycles through multiple uploaded images.',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  DropdownButtonFormField<LogoTransitionEffect>(
+                                    value: _logoEffect,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Logo effect',
+                                    ),
+                                    items: const [
+                                      DropdownMenuItem(
+                                        value: LogoTransitionEffect.fade,
+                                        child: Text('Fade'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: LogoTransitionEffect.slide,
+                                        child: Text('Slide'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: LogoTransitionEffect.zoom,
+                                        child: Text('Zoom'),
+                                      ),
+                                    ],
+                                    onChanged: (v) => setState(() =>
+                                        _logoEffect =
+                                            v ?? LogoTransitionEffect.fade),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _labeledSlider(
+                                    'Time per image',
+                                    _logoHoldSeconds,
+                                    0.5,
+                                    5,
+                                    (v) => setState(() => _logoHoldSeconds = v),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        if (_homeMode == HomeMode.event) ...[
+                          SizedBox(
+                            height: 52,
+                            child: FilledButton(
+                              onPressed: _openConcertPreviewPopup,
+                              child: const Text('Edit Concert Style'),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        if (isPortrait && _persistentRotateHint)
+                          _buildPersistentRotateHint(t),
+                        const SizedBox(height: 14),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Positioned(
+              left: 16,
+              bottom: 12,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FilledButton.icon(
+                    key: const ValueKey('show-sign'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(180, 52),
+                    ),
+                    onPressed: _showSign,
+                    icon: const Icon(Icons.fullscreen),
+                    label: Text(t.show, textAlign: TextAlign.center),
+                  ),
+                  const SizedBox(width: 10),
+                  Tooltip(
+                    message: 'Share image',
+                    child: SizedBox(
+                      width: 54,
+                      height: 52,
+                      child: FilledButton(
+                        key: const ValueKey('share-created-image'),
+                        style: FilledButton.styleFrom(padding: EdgeInsets.zero),
+                        onPressed: _shareCreatedImage,
+                        child: const Icon(Icons.ios_share),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (sidePanel)
+              Positioned(
+                top: 12,
+                right: 16,
+                bottom: (MediaQuery.viewInsetsOf(context).bottom - 64).clamp(
+                    12.0,
+                    (constraints.maxHeight - 140).clamp(12.0, double.infinity)),
+                width: panelWidth,
+                child: _buildFixedAdjustments(t),
+              ),
+            if (_tipVisible) Positioned.fill(child: _buildRotateBubble(t)),
+          ],
+        );
+      }),
     );
   }
 }

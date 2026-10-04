@@ -121,5 +121,21 @@
   "languageJapanese": "日本語",
   "languageRussian": "ロシア語",
   "languageChinese": "中国語",
-  "languageArabic": "アラビア語"
+  "languageArabic": "アラビア語",
+  "editSignText": "テキストを編集",
+  "livePreview": "プレビュー",
+  "appearance": "表示設定",
+  "appearanceHint": "サイズ、色、配置",
+  "doneEditing": "完了",
+  "boldText": "太字",
+  "airportIcon": "空港アイコン",
+  "alignLeft": "左揃え",
+  "alignCenter": "中央揃え",
+  "alignRight": "右揃え",
+  "advertisement": "広告",
+  "textTab": "テキスト",
+  "italicText": "斜体",
+  "underlineText": "下線",
+  "signIcon": "アイコン",
+  "editSign": "編集"
 }

@@ -21,6 +21,7 @@ class PaywallScreen extends StatefulWidget {
 class _PaywallScreenState extends State<PaywallScreen> {
   bool _loading = true;
   bool _busy = false;
+  bool _isPro = false;
 
   @override
   void initState() {
@@ -30,23 +31,36 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   Future<void> _init() async {
     await SubscriptionManager.init();
+    await SubscriptionManager.loadProducts();
+    final isPro = await SubscriptionManager.isPro();
     if (!mounted) return;
-    setState(() => _loading = false);
+    setState(() {
+      _isPro = isPro;
+      _loading = false;
+    });
   }
 
   Future<void> _buyById(String id) async {
     await AnalyticsService.logPurchaseTap(id);
-    final p = SubscriptionManager.productById(id);
+    setState(() => _busy = true);
+
+    var p = SubscriptionManager.productById(id);
     if (p == null) {
+      await SubscriptionManager.loadProducts(force: true);
+      p = SubscriptionManager.productById(id);
+    }
+
+    if (p == null) {
+      if (!mounted) return;
+      setState(() => _busy = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Store product is not ready yet. Check product setup.'),
+        SnackBar(
+          content: Text(SubscriptionManager.storeSetupMessageFor(id)),
         ),
       );
       return;
     }
 
-    setState(() => _busy = true);
     try {
       await SubscriptionManager.buy(p);
     } catch (_) {}
@@ -54,6 +68,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     setState(() => _busy = false);
 
     final pro = await SubscriptionManager.isPro();
+    if (mounted) setState(() => _isPro = pro);
     if (pro && mounted) context.pop();
   }
 
@@ -70,6 +85,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
     final pro = await SubscriptionManager.isPro();
     if (!mounted) return;
+    setState(() => _isPro = pro);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(pro ? t.proRestored : t.restoreDone)),
@@ -118,7 +134,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(title: Text(t.goPro)),
+      appBar: AppBar(title: Text(_isPro ? t.proActive : t.goPro)),
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator())

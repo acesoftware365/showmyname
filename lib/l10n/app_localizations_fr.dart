@@ -448,4 +448,52 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get backgroundColor => 'Background';
+
+  @override
+  String get editSignText => 'Modifier le texte';
+
+  @override
+  String get livePreview => 'Aperçu';
+
+  @override
+  String get appearance => 'Apparence';
+
+  @override
+  String get appearanceHint => 'Taille, couleurs et alignement';
+
+  @override
+  String get doneEditing => 'Terminé';
+
+  @override
+  String get boldText => 'Gras';
+
+  @override
+  String get airportIcon => 'Icône d’aéroport';
+
+  @override
+  String get alignLeft => 'Aligner à gauche';
+
+  @override
+  String get alignCenter => 'Centrer';
+
+  @override
+  String get alignRight => 'Aligner à droite';
+
+  @override
+  String get advertisement => 'Publicité';
+
+  @override
+  String get textTab => 'Texte';
+
+  @override
+  String get italicText => 'Italique';
+
+  @override
+  String get underlineText => 'Souligné';
+
+  @override
+  String get signIcon => 'Icône';
+
+  @override
+  String get editSign => 'Modifier';
 }

@@ -2,7 +2,7 @@
 // Description: Fullscreen display for text/logo/colors.
 // - Airport: text static (no motion)
 // - Concert/Event: motionDirection + motionStyle(loop/bounce) + motionSpeed + colorShift
-// - ColorWave: single/cycle colors with fade/slide
+// - ColorWave: single/cycle text colors with fade/slide
 // - Logo: fullscreen
 // - Text: auto-size to fit screen + optional manual fontScale
 // - Exit: double tap anywhere
@@ -20,7 +20,8 @@ import 'widgets/handwriting_sign.dart';
 
 class DisplayScreen extends StatefulWidget {
   final SignConfig config;
-  const DisplayScreen({super.key, required this.config});
+  final bool preview;
+  const DisplayScreen({super.key, required this.config, this.preview = false});
 
   @override
   State<DisplayScreen> createState() => _DisplayScreenState();
@@ -34,6 +35,7 @@ class _DisplayScreenState extends State<DisplayScreen>
   int _colorIndex = 0;
   int _logoIndex = 0;
   Color _currentColor = Colors.black;
+  Color _previousColor = Colors.black;
 
   // Rotate tip animation (portrait only)
   late final AnimationController _tipController;
@@ -103,6 +105,7 @@ class _DisplayScreenState extends State<DisplayScreen>
       _timer?.cancel();
       _colorIndex = 0;
       _currentColor = Colors.black;
+      _previousColor = Colors.black;
       _initColorModeIfNeeded();
 
       _logoTimer?.cancel();
@@ -150,22 +153,26 @@ class _DisplayScreenState extends State<DisplayScreen>
 
     if (c.singleColor != null) {
       _currentColor = c.singleColor!;
+      _previousColor = _currentColor;
       return;
     }
 
     final colors = c.cycleColors;
     if (colors.isEmpty) {
       _currentColor = Colors.black;
+      _previousColor = _currentColor;
       return;
     }
 
     _currentColor = colors.first;
+    _previousColor = _currentColor;
     _colorIndex = 0;
 
     _timer?.cancel();
     _timer = Timer.periodic(c.colorHold + c.transitionDuration, (_) {
       if (!mounted) return;
       setState(() {
+        _previousColor = _currentColor;
         _colorIndex = (_colorIndex + 1) % colors.length;
         _currentColor = colors[_colorIndex];
       });
@@ -173,15 +180,35 @@ class _DisplayScreenState extends State<DisplayScreen>
   }
 
   Widget _buildColorOnly(SignConfig c) {
-    if (c.singleColor != null) return Container(color: c.singleColor);
+    Widget colorText(Color color) {
+      final renderConfig = SignConfig(
+        message: c.message,
+        usageMode: SignUsageMode.airport,
+        signType: SignType.textOnly,
+        backgroundColor: Colors.black,
+        textColor: color,
+        fontScale: c.fontScale,
+        bold: c.bold,
+        italic: c.italic,
+        underline: c.underline,
+        textAlign: c.textAlign,
+      );
+      return Container(
+        color: Colors.black,
+        child: EffectSign(config: renderConfig),
+      );
+    }
+
+    if (c.singleColor != null) return colorText(c.singleColor!);
 
     final duration = c.transitionDuration;
 
     if (c.colorTransition == ColorTransitionType.fade) {
-      return AnimatedContainer(
+      return TweenAnimationBuilder<Color?>(
+        tween: ColorTween(begin: _previousColor, end: _currentColor),
         duration: duration,
         curve: Curves.easeInOut,
-        color: _currentColor,
+        builder: (_, color, __) => colorText(color ?? _currentColor),
       );
     }
 
@@ -195,9 +222,10 @@ class _DisplayScreenState extends State<DisplayScreen>
                 .animate(anim);
         return SlideTransition(position: offsetTween, child: child);
       },
-      child: Container(
+      child: ColoredBox(
         key: ValueKey(_currentColor.value),
-        color: _currentColor,
+        color: Colors.black,
+        child: colorText(_currentColor),
       ),
     );
   }
@@ -369,8 +397,11 @@ class _DisplayScreenState extends State<DisplayScreen>
                 textColor: _shiftedTextColor(),
                 backgroundColor: c.backgroundColor,
                 bold: c.bold,
+                italic: c.italic,
+                underline: c.underline,
                 textAlign: c.textAlign,
                 showIcon: c.showIcon,
+                iconSymbol: c.iconSymbol,
                 concertTextEffect: c.concertTextEffect,
                 ledColor: c.ledColor,
                 ledGlowIntensity: c.ledGlowIntensity,
@@ -418,7 +449,7 @@ class _DisplayScreenState extends State<DisplayScreen>
     final c = widget.config;
     final orientation = MediaQuery.of(context).orientation;
     final isPortrait = orientation == Orientation.portrait;
-    if (_lastOrientation != orientation) {
+    if (!widget.preview && _lastOrientation != orientation) {
       _lastOrientation = orientation;
       if (isPortrait) {
         _tipController.forward();
@@ -438,16 +469,22 @@ class _DisplayScreenState extends State<DisplayScreen>
             : c.isHandwritingOnly
                 ? HandwritingSign(
                     strokes: c.handwritingStrokes,
+                    layers: c.handwritingLayers,
                     color: c.handwritingColor,
                     strokeWidth: c.handwritingStrokeWidth,
                     style: c.handwritingStyle,
                   )
                 : _buildText(c);
 
+    if (widget.preview) {
+      return ColoredBox(color: c.backgroundColor, child: content);
+    }
+
     return Scaffold(
       backgroundColor: c.backgroundColor,
       body: GestureDetector(
         behavior: HitTestBehavior.opaque,
+        onTap: _exit,
         onDoubleTap: _exit,
         child: Stack(
           children: [

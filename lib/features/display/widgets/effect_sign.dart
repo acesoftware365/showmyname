@@ -43,6 +43,7 @@ class _EffectSignState extends State<EffectSign>
     required String text,
     required double scale,
     required FontWeight weight,
+    bool italic = false,
     int maxLines = 3,
   }) {
     if (text.trim().isEmpty) return 40;
@@ -58,14 +59,30 @@ class _EffectSignState extends State<EffectSign>
       final painter = TextPainter(
         text: TextSpan(
           text: text,
-          style: TextStyle(fontSize: size, fontWeight: weight, height: 1.1),
+          style: TextStyle(
+              fontSize: size,
+              fontWeight: weight,
+              fontStyle: italic ? FontStyle.italic : FontStyle.normal,
+              height: 1.1),
         ),
         textAlign: TextAlign.center,
         maxLines: maxLines,
         textDirection: TextDirection.ltr,
       )..layout(maxWidth: maxW);
 
-      if (painter.size.width <= maxW && painter.size.height <= maxH) {
+      final wordsFit = text.split(RegExp(r'\s+')).every((word) {
+        final wordPainter = TextPainter(
+          text: TextSpan(text: word, style: painter.text!.style),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final fits = wordPainter.width <= maxW;
+        wordPainter.dispose();
+        return fits;
+      });
+      if (!painter.didExceedMaxLines &&
+          wordsFit &&
+          painter.size.width <= maxW &&
+          painter.size.height <= maxH) {
         best = size;
         low = mid;
       } else {
@@ -99,7 +116,8 @@ class _EffectSignState extends State<EffectSign>
   }
 
   Widget _plainText(SignConfig c, double fontSize, {List<Shadow>? shadows}) {
-    final text = c.showIcon ? '✈ ${c.message ?? ''}' : c.message ?? '';
+    final text =
+        c.showIcon ? '${c.iconSymbol} ${c.message ?? ''}' : c.message ?? '';
     final align = _alignForConfig(c);
     return Align(
       alignment: _alignmentForText(align),
@@ -114,6 +132,10 @@ class _EffectSignState extends State<EffectSign>
             color: c.textColor,
             fontSize: fontSize,
             fontWeight: c.bold ? FontWeight.w800 : FontWeight.w400,
+            fontStyle: c.italic ? FontStyle.italic : FontStyle.normal,
+            decoration:
+                c.underline ? TextDecoration.underline : TextDecoration.none,
+            decorationColor: c.textColor,
             height: 1.08,
             shadows: shadows,
           ),
@@ -188,70 +210,164 @@ class _EffectSignState extends State<EffectSign>
 
   Widget _waveText(SignConfig c, double fontSize) {
     final chars = (c.message ?? '').characters.toList();
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        return Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            for (var i = 0; i < chars.length; i++)
-              Transform.translate(
-                offset: Offset(
-                  0,
-                  math.sin((_controller.value * math.pi * 2) + i * 0.55) * 10,
-                ),
-                child: Text(
-                  chars[i],
-                  style: TextStyle(
-                    color: c.textColor,
-                    fontSize: fontSize,
-                    fontWeight: FontWeight.w800,
-                    shadows: [
-                      Shadow(
-                        color: c.textColor.withOpacity(0.45),
-                        blurRadius: 18,
+    if (chars.isEmpty) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWave = (constraints.maxHeight * 0.10).clamp(4.0, 12.0);
+        final safeFontSize = _fitWaveFontSize(
+          chars: chars,
+          baseFontSize: fontSize,
+          maxWidth: constraints.maxWidth * 0.92,
+          maxHeight: constraints.maxHeight * 0.74,
+          waveHeight: maxWave,
+        );
+
+        return ClipRect(
+          child: Center(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                return Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: safeFontSize * 0.02,
+                  runSpacing: maxWave * 1.2,
+                  children: [
+                    for (var i = 0; i < chars.length; i++)
+                      Transform.translate(
+                        offset: Offset(
+                          0,
+                          math.sin(
+                                (_controller.value * math.pi * 2) + i * 0.55,
+                              ) *
+                              maxWave,
+                        ),
+                        child: Text(
+                          chars[i],
+                          textHeightBehavior: const TextHeightBehavior(
+                            applyHeightToFirstAscent: false,
+                            applyHeightToLastDescent: false,
+                          ),
+                          style: TextStyle(
+                            color: c.textColor,
+                            fontSize: safeFontSize,
+                            fontWeight: FontWeight.w800,
+                            height: 1.0,
+                            shadows: [
+                              Shadow(
+                                color: c.textColor.withOpacity(0.45),
+                                blurRadius: 18,
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
+                  ],
+                );
+              },
+            ),
+          ),
         );
       },
     );
   }
 
-  Widget _marqueeText(SignConfig c, double fontSize) {
-    return ClipRect(
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          final left = c.marqueeDirection != MotionDirection.leftToRight;
-          final speed = c.marqueeSpeed.clamp(20.0, 200.0);
-          final travel = (_controller.value * (speed / 70)) % 1.0;
-          final x = left ? 1.2 - travel * 2.4 : -1.2 + travel * 2.4;
-          return FractionalTranslation(
-            translation: Offset(x, 0),
-            child: Center(
-              child: Text(
-                c.message ?? '',
-                maxLines: 1,
-                softWrap: false,
+  double _fitWaveFontSize({
+    required List<String> chars,
+    required double baseFontSize,
+    required double maxWidth,
+    required double maxHeight,
+    required double waveHeight,
+  }) {
+    var size = baseFontSize.clamp(12.0, widget.preview ? 96.0 : 220.0);
+    for (var attempt = 0; attempt < 18; attempt++) {
+      final painter = TextPainter(
+        text: TextSpan(
+          children: [
+            for (final char in chars)
+              TextSpan(
+                text: char,
                 style: TextStyle(
-                  color: c.textColor,
-                  fontSize: fontSize,
+                  fontSize: size,
                   fontWeight: FontWeight.w800,
-                  shadows: [
-                    Shadow(
-                        color: c.textColor.withOpacity(0.55), blurRadius: 16),
-                  ],
+                  height: 1.0,
                 ),
               ),
-            ),
-          );
-        },
-      ),
+          ],
+        ),
+        maxLines: 3,
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: maxWidth);
+
+      if (painter.width <= maxWidth &&
+          painter.height + waveHeight * 2 <= maxHeight) {
+        return size;
+      }
+      size *= 0.9;
+    }
+    return size;
+  }
+
+  Widget _marqueeText(SignConfig c, double fontSize) {
+    final message = c.message ?? '';
+    if (message.trim().isEmpty) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final style = TextStyle(
+          color: c.textColor,
+          fontSize: fontSize,
+          fontWeight: FontWeight.w800,
+          height: 1.0,
+          shadows: [
+            Shadow(color: c.textColor.withOpacity(0.55), blurRadius: 16),
+          ],
+        );
+        final painter = TextPainter(
+          text: TextSpan(text: message, style: style),
+          maxLines: 1,
+          textDirection: TextDirection.ltr,
+        )..layout();
+
+        final width = constraints.maxWidth;
+        final height = constraints.maxHeight;
+        final textWidth = painter.width;
+        final gap = math.max(36.0, width * 0.20);
+        final track = textWidth + gap;
+        final speed = c.marqueeSpeed.clamp(20.0, 200.0);
+
+        return ClipRect(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              final moved = (_controller.value * 5.0 * speed) % track;
+              final y = (height - painter.height) / 2;
+              final leftToRight =
+                  c.marqueeDirection == MotionDirection.leftToRight;
+              final start = leftToRight ? -textWidth + moved : width - moved;
+
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  for (var i = -1; i < 5; i++)
+                    Positioned(
+                      left: leftToRight ? start - i * track : start + i * track,
+                      top: y,
+                      child: Text(
+                        message,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.visible,
+                        style: style,
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -259,13 +375,6 @@ class _EffectSignState extends State<EffectSign>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
-        double dx = 0;
-        final dotPitch = c.ledDotSpacing.clamp(5.0, 14.0);
-        if (c.ledAnimation == LedAnimation.scrollLeft) {
-          dx = -_controller.value * dotPitch;
-        } else if (c.ledAnimation == LedAnimation.scrollRight) {
-          dx = _controller.value * dotPitch;
-        }
         final pulse = c.ledAnimation == LedAnimation.pulse
             ? 0.72 + math.sin(_controller.value * math.pi * 2) * 0.22
             : 1.0;
@@ -282,7 +391,8 @@ class _EffectSignState extends State<EffectSign>
               brightness: c.ledBrightness * pulse,
               glowIntensity: c.ledGlowIntensity,
               borderGlow: c.ledBorderGlow,
-              scrollOffset: dx,
+              animation: c.ledAnimation,
+              animationProgress: _controller.value,
             ),
             child: const SizedBox.expand(),
           ),
@@ -327,9 +437,12 @@ class _EffectSignState extends State<EffectSign>
 
         final fontSize = _fitFontSize(
           constraints: constraints,
-          text: c.message ?? '',
+          text: c.showIcon
+              ? '${c.iconSymbol} ${c.message ?? ''}'
+              : c.message ?? '',
           scale: c.fontScale,
           weight: c.bold ? FontWeight.w800 : FontWeight.w400,
+          italic: c.italic,
         );
         return _plainText(c, fontSize);
       },
@@ -346,7 +459,8 @@ class _LedMatrixPainter extends CustomPainter {
   final double brightness;
   final double glowIntensity;
   final double borderGlow;
-  final double scrollOffset;
+  final LedAnimation animation;
+  final double animationProgress;
 
   const _LedMatrixPainter({
     required this.message,
@@ -357,7 +471,8 @@ class _LedMatrixPainter extends CustomPainter {
     required this.brightness,
     required this.glowIntensity,
     required this.borderGlow,
-    required this.scrollOffset,
+    required this.animation,
+    required this.animationProgress,
   });
 
   @override
@@ -393,7 +508,8 @@ class _LedMatrixPainter extends CustomPainter {
 
     canvas.save();
     canvas.clipRRect(panel);
-    _drawBackgroundDots(canvas, size);
+    final pitch = _effectivePitch;
+    _drawBackgroundDots(canvas, size, pitch);
 
     final painter = TextPainter(
       text: TextSpan(
@@ -411,10 +527,24 @@ class _LedMatrixPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: size.width * 0.88);
 
-    final textOffset = Offset(
+    var textOffset = Offset(
       (size.width - painter.width) / 2,
       (size.height - painter.height) / 2,
     );
+    if (animation == LedAnimation.scrollLeft ||
+        animation == LedAnimation.scrollRight) {
+      final margin = pitch * 3;
+      final start = animation == LedAnimation.scrollLeft
+          ? size.width + margin
+          : -painter.width - margin;
+      final end = animation == LedAnimation.scrollLeft
+          ? -painter.width - margin
+          : size.width + margin;
+      textOffset = Offset(
+        start + (end - start) * animationProgress,
+        (size.height - painter.height) / 2,
+      );
+    }
 
     canvas.saveLayer(Offset.zero & size, Paint());
     painter.paint(canvas, textOffset);
@@ -422,15 +552,20 @@ class _LedMatrixPainter extends CustomPainter {
       Offset.zero & size,
       Paint()..blendMode = BlendMode.srcIn,
     );
-    _drawLitDots(canvas, size);
+    _drawLitDots(canvas, size, pitch);
     canvas.restore();
     canvas.restore();
     canvas.restore();
   }
 
-  void _drawBackgroundDots(Canvas canvas, Size size) {
-    final pitch = dotSpacing.clamp(5.0, 14.0);
-    final radius = (dotSize.clamp(2.0, 10.0) / 2).clamp(1.0, pitch / 2.8);
+  double get _effectivePitch {
+    final requested = dotSpacing.clamp(5.0, 14.0);
+    final readable = (fontSize / 6.4).clamp(5.0, 11.0);
+    return math.min(requested, readable);
+  }
+
+  void _drawBackgroundDots(Canvas canvas, Size size, double pitch) {
+    final radius = (dotSize.clamp(2.0, 10.0) / 2).clamp(1.0, pitch / 3.0);
     final paint = Paint()..color = Colors.white.withOpacity(0.055);
     for (double y = pitch / 2; y < size.height; y += pitch) {
       for (double x = pitch / 2; x < size.width; x += pitch) {
@@ -439,9 +574,8 @@ class _LedMatrixPainter extends CustomPainter {
     }
   }
 
-  void _drawLitDots(Canvas canvas, Size size) {
-    final pitch = dotSpacing.clamp(5.0, 14.0);
-    final radius = (dotSize.clamp(2.0, 10.0) / 2).clamp(1.0, pitch / 2.3);
+  void _drawLitDots(Canvas canvas, Size size, double pitch) {
+    final radius = (dotSize.clamp(2.0, 10.0) / 2).clamp(1.0, pitch / 2.75);
     final b = brightness.clamp(0.15, 1.35);
     final lit = color.withOpacity((0.72 * b).clamp(0.15, 1.0));
     final hot = Color.lerp(Colors.white, color, 0.45)!
@@ -454,9 +588,8 @@ class _LedMatrixPainter extends CustomPainter {
       );
     final dotPaint = Paint()..color = lit;
     final hotPaint = Paint()..color = hot;
-    final startX = (scrollOffset % pitch) - pitch;
     for (double y = pitch / 2; y < size.height; y += pitch) {
-      for (double x = startX + pitch / 2; x < size.width + pitch; x += pitch) {
+      for (double x = pitch / 2; x < size.width + pitch; x += pitch) {
         final p = Offset(x, y);
         canvas.drawCircle(p, radius * 1.65, glowPaint);
         canvas.drawCircle(p, radius, dotPaint);
@@ -476,6 +609,7 @@ class _LedMatrixPainter extends CustomPainter {
         oldDelegate.brightness != brightness ||
         oldDelegate.glowIntensity != glowIntensity ||
         oldDelegate.borderGlow != borderGlow ||
-        oldDelegate.scrollOffset != scrollOffset;
+        oldDelegate.animation != animation ||
+        oldDelegate.animationProgress != animationProgress;
   }
 }

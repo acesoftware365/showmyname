@@ -1,7 +1,7 @@
 // Path: lib/routing/app_router.dart
 // Description: GoRouter configuration used by MaterialApp.router (main.dart).
 // Update:
-// - Shows AdBanner on ALL normal screens using ShellRoute (Home/Settings/Privacy/Logo/Paywall).
+// - Shows AdBanner on Home only for Free users.
 // - Keeps DisplayScreen outside the shell for true fullscreen (no double banners, no UI issues).
 // Routes:
 // - name: home     path: /
@@ -31,6 +31,7 @@ class AppRouter {
       ShellRoute(
         builder: (context, state, child) {
           return AdBannerShell(
+            showBanner: state.uri.path == '/',
             child: child,
           );
         },

@@ -142,5 +142,21 @@
   "languageArabic": "Arabic",
   "colorsSection": "Colors",
   "textColor": "Text color",
-  "backgroundColor": "Background"
+  "backgroundColor": "Background",
+  "editSignText": "Edit text",
+  "livePreview": "Live preview",
+  "appearance": "Appearance",
+  "appearanceHint": "Size, colors and alignment",
+  "doneEditing": "Done",
+  "boldText": "Bold",
+  "airportIcon": "Airport icon",
+  "alignLeft": "Align left",
+  "alignCenter": "Center",
+  "alignRight": "Align right",
+  "advertisement": "Advertisement",
+  "textTab": "Text",
+  "italicText": "Italic",
+  "underlineText": "Underline",
+  "signIcon": "Icon",
+  "editSign": "Edit"
 }

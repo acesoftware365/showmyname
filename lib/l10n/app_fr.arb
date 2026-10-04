@@ -121,5 +121,21 @@
   "languageJapanese": "Japonais",
   "languageRussian": "Russe",
   "languageChinese": "Chinois",
-  "languageArabic": "Arabe"
+  "languageArabic": "Arabe",
+  "editSignText": "Modifier le texte",
+  "livePreview": "Aperçu",
+  "appearance": "Apparence",
+  "appearanceHint": "Taille, couleurs et alignement",
+  "doneEditing": "Terminé",
+  "boldText": "Gras",
+  "airportIcon": "Icône d’aéroport",
+  "alignLeft": "Aligner à gauche",
+  "alignCenter": "Centrer",
+  "alignRight": "Aligner à droite",
+  "advertisement": "Publicité",
+  "textTab": "Texte",
+  "italicText": "Italique",
+  "underlineText": "Souligné",
+  "signIcon": "Icône",
+  "editSign": "Modifier"
 }

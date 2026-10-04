@@ -137,11 +137,13 @@ class RewardedAdService {
     _showing = true;
 
     final completer = Completer<bool>();
+    var displayStarted = false;
     var rewarded = false;
     final health = AdHealthManager.instance;
 
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdShowedFullScreenContent: (_) {
+        displayStarted = true;
         health.markShowed(_slot);
       },
       onAdDismissedFullScreenContent: (ad) {
@@ -149,29 +151,38 @@ class RewardedAdService {
         _showing = false;
         health.markDismissed(_slot);
         unawaited(preload());
-        if (!completer.isCompleted) completer.complete(rewarded);
+        if (!completer.isCompleted) {
+          completer.complete(displayStarted || rewarded);
+        }
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
         ad.dispose();
         _showing = false;
         unawaited(preload());
-        if (!completer.isCompleted) completer.complete(false);
+        if (!completer.isCompleted) completer.complete(displayStarted);
       },
     );
 
-    await ad.show(
-      onUserEarnedReward: (_, __) {
-        rewarded = true;
-        health.markRewarded(_slot);
-      },
-    );
+    try {
+      displayStarted = true;
+      await ad.show(
+        onUserEarnedReward: (_, __) {
+          rewarded = true;
+          health.markRewarded(_slot);
+        },
+      );
+    } catch (_) {
+      _showing = false;
+      unawaited(preload());
+      if (!completer.isCompleted) completer.complete(false);
+    }
 
     return completer.future.timeout(
       const Duration(seconds: 45),
       onTimeout: () {
         _showing = false;
         unawaited(preload());
-        return false;
+        return displayStarted || rewarded;
       },
     );
   }

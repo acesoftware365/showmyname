@@ -121,5 +121,21 @@
   "languageJapanese": "اليابانية",
   "languageRussian": "الروسية",
   "languageChinese": "الصينية",
-  "languageArabic": "العربية"
+  "languageArabic": "العربية",
+  "editSignText": "تعديل النص",
+  "livePreview": "معاينة مباشرة",
+  "appearance": "المظهر",
+  "appearanceHint": "الحجم والألوان والمحاذاة",
+  "doneEditing": "تم",
+  "boldText": "خط عريض",
+  "airportIcon": "رمز المطار",
+  "alignLeft": "محاذاة لليسار",
+  "alignCenter": "توسيط",
+  "alignRight": "محاذاة لليمين",
+  "advertisement": "إعلان",
+  "textTab": "النص",
+  "italicText": "مائل",
+  "underlineText": "تسطير",
+  "signIcon": "رمز",
+  "editSign": "تعديل"
 }

@@ -444,4 +444,52 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get backgroundColor => 'Background';
+
+  @override
+  String get editSignText => 'تعديل النص';
+
+  @override
+  String get livePreview => 'معاينة مباشرة';
+
+  @override
+  String get appearance => 'المظهر';
+
+  @override
+  String get appearanceHint => 'الحجم والألوان والمحاذاة';
+
+  @override
+  String get doneEditing => 'تم';
+
+  @override
+  String get boldText => 'خط عريض';
+
+  @override
+  String get airportIcon => 'رمز المطار';
+
+  @override
+  String get alignLeft => 'محاذاة لليسار';
+
+  @override
+  String get alignCenter => 'توسيط';
+
+  @override
+  String get alignRight => 'محاذاة لليمين';
+
+  @override
+  String get advertisement => 'إعلان';
+
+  @override
+  String get textTab => 'النص';
+
+  @override
+  String get italicText => 'مائل';
+
+  @override
+  String get underlineText => 'تسطير';
+
+  @override
+  String get signIcon => 'رمز';
+
+  @override
+  String get editSign => 'تعديل';
 }

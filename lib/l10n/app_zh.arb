@@ -121,5 +121,21 @@
   "languageJapanese": "日语",
   "languageRussian": "俄语",
   "languageChinese": "中文",
-  "languageArabic": "阿拉伯语"
+  "languageArabic": "阿拉伯语",
+  "editSignText": "编辑文字",
+  "livePreview": "实时预览",
+  "appearance": "外观",
+  "appearanceHint": "大小、颜色和对齐方式",
+  "doneEditing": "完成",
+  "boldText": "粗体",
+  "airportIcon": "机场图标",
+  "alignLeft": "左对齐",
+  "alignCenter": "居中",
+  "alignRight": "右对齐",
+  "advertisement": "广告",
+  "textTab": "文字",
+  "italicText": "斜体",
+  "underlineText": "下划线",
+  "signIcon": "图标",
+  "editSign": "编辑"
 }

@@ -15,7 +15,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../l10n/app_localizations.dart';
 import '../../services/subscription/subscription_manager.dart';
 
-
 class PrivacyScreen extends StatelessWidget {
   const PrivacyScreen({super.key});
 
@@ -38,8 +37,8 @@ class PrivacyScreen extends StatelessWidget {
     final platform = Platform.isIOS
         ? 'iOS'
         : Platform.isAndroid
-        ? 'Android'
-        : 'Unknown';
+            ? 'Android'
+            : 'Unknown';
 
     final language = Localizations.localeOf(context).languageCode;
 
@@ -55,8 +54,8 @@ ${t.supportBodyIntro}
 
     final uri = Uri.parse(
       'mailto:$_supportEmail'
-          '?subject=${Uri.encodeComponent(subject)}'
-          '&body=${Uri.encodeComponent(body)}',
+      '?subject=${Uri.encodeComponent(subject)}'
+      '&body=${Uri.encodeComponent(body)}',
     );
 
     try {
@@ -93,8 +92,6 @@ ${t.supportBodyIntro}
         child: FutureBuilder<bool>(
           future: SubscriptionManager.isPro(),
           builder: (context, snap) {
-            final isPro = snap.data ?? false;
-
             return ListView(
               padding: const EdgeInsets.all(20),
               children: [
@@ -113,7 +110,7 @@ ${t.supportBodyIntro}
                 const SizedBox(height: 20),
 
                 // ✅ Banner only for FREE
-               // if (!isPro) const AdBanner(),
+                // if (!isPro) const AdBanner(),
 
                 const SizedBox(height: 24),
                 const Divider(color: Colors.white24),

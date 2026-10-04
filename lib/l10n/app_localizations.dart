@@ -971,6 +971,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Background'**
   String get backgroundColor;
+
+  /// No description provided for @editSignText.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit text'**
+  String get editSignText;
+
+  /// No description provided for @livePreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Live preview'**
+  String get livePreview;
+
+  /// No description provided for @appearance.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get appearance;
+
+  /// No description provided for @appearanceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Size, colors and alignment'**
+  String get appearanceHint;
+
+  /// No description provided for @doneEditing.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get doneEditing;
+
+  /// No description provided for @boldText.
+  ///
+  /// In en, this message translates to:
+  /// **'Bold'**
+  String get boldText;
+
+  /// No description provided for @airportIcon.
+  ///
+  /// In en, this message translates to:
+  /// **'Airport icon'**
+  String get airportIcon;
+
+  /// No description provided for @alignLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Align left'**
+  String get alignLeft;
+
+  /// No description provided for @alignCenter.
+  ///
+  /// In en, this message translates to:
+  /// **'Center'**
+  String get alignCenter;
+
+  /// No description provided for @alignRight.
+  ///
+  /// In en, this message translates to:
+  /// **'Align right'**
+  String get alignRight;
+
+  /// No description provided for @advertisement.
+  ///
+  /// In en, this message translates to:
+  /// **'Advertisement'**
+  String get advertisement;
+
+  /// No description provided for @textTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Text'**
+  String get textTab;
+
+  /// No description provided for @italicText.
+  ///
+  /// In en, this message translates to:
+  /// **'Italic'**
+  String get italicText;
+
+  /// No description provided for @underlineText.
+  ///
+  /// In en, this message translates to:
+  /// **'Underline'**
+  String get underlineText;
+
+  /// No description provided for @signIcon.
+  ///
+  /// In en, this message translates to:
+  /// **'Icon'**
+  String get signIcon;
+
+  /// No description provided for @editSign.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get editSign;
 }
 
 class _AppLocalizationsDelegate

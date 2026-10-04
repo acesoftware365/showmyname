@@ -1,36 +1,53 @@
 import 'package:flutter/material.dart';
 
+import '../../../models/sign_config.dart';
 import '../../../models/sign_mode.dart';
 
 class HandwritingSign extends StatelessWidget {
   final List<List<Offset>> strokes;
+  final List<HandwritingLayer> layers;
   final Color color;
   final double strokeWidth;
   final HandwritingStrokeStyle style;
   final bool preview;
   final String emptyLabel;
+  final bool fitToContent;
 
   const HandwritingSign({
     super.key,
-    required this.strokes,
+    this.strokes = const <List<Offset>>[],
+    this.layers = const <HandwritingLayer>[],
     required this.color,
     required this.strokeWidth,
     this.style = HandwritingStrokeStyle.smooth,
     this.preview = false,
     this.emptyLabel = 'Write a name',
+    this.fitToContent = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final effectiveLayers = layers.isEmpty
+        ? <HandwritingLayer>[
+            HandwritingLayer(
+              strokes: strokes,
+              color: color,
+              strokeWidth: strokeWidth,
+              style: style,
+            ),
+          ]
+        : layers;
+    final isEmpty = effectiveLayers
+        .where((layer) => layer.visible)
+        .every((layer) => layer.isEmpty);
+
     return CustomPaint(
       painter: _HandwritingPainter(
-        strokes: strokes,
-        color: color,
-        strokeWidth: strokeWidth,
-        style: style,
+        layers: effectiveLayers,
         preview: preview,
+        fitToContent: fitToContent,
       ),
-      child: strokes.isEmpty
+      child: isEmpty
           ? Center(
               child: Text(
                 emptyLabel,
@@ -47,52 +64,72 @@ class HandwritingSign extends StatelessWidget {
 }
 
 class _HandwritingPainter extends CustomPainter {
-  final List<List<Offset>> strokes;
-  final Color color;
-  final double strokeWidth;
-  final HandwritingStrokeStyle style;
+  final List<HandwritingLayer> layers;
   final bool preview;
+  final bool fitToContent;
 
   const _HandwritingPainter({
-    required this.strokes,
-    required this.color,
-    required this.strokeWidth,
-    required this.style,
+    required this.layers,
     required this.preview,
+    required this.fitToContent,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (strokes.isEmpty) return;
+    final visibleLayers = layers
+        .where((layer) => layer.visible && !layer.isEmpty)
+        .toList(growable: false);
+    if (visibleLayers.isEmpty) return;
 
-    final bounds = _boundsFor(strokes);
+    final bounds = _boundsFor(visibleLayers);
     if (bounds == null || bounds.width <= 0 || bounds.height <= 0) return;
 
-    final padding = preview ? 18.0 : 44.0;
-    final scale = [
-      (size.width - padding * 2) / bounds.width,
-      (size.height - padding * 2) / bounds.height,
-    ].reduce((a, b) => a < b ? a : b);
-    final safeScale = scale.isFinite ? scale.clamp(0.2, 12.0) : 1.0;
-    final fitted = Size(bounds.width * safeScale, bounds.height * safeScale);
-    final offset = Offset(
-      (size.width - fitted.width) / 2 - bounds.left * safeScale,
-      (size.height - fitted.height) / 2 - bounds.top * safeScale,
-    );
+    final double safeScale;
+    final Offset offset;
+    if (fitToContent) {
+      final padding = preview ? 18.0 : 44.0;
+      final scale = [
+        (size.width - padding * 2) / bounds.width,
+        (size.height - padding * 2) / bounds.height,
+      ].reduce((a, b) => a < b ? a : b);
+      safeScale = scale.isFinite ? scale.clamp(0.2, 12.0) : 1.0;
+      final fitted = Size(bounds.width * safeScale, bounds.height * safeScale);
+      offset = Offset(
+        (size.width - fitted.width) / 2 - bounds.left * safeScale,
+        (size.height - fitted.height) / 2 - bounds.top * safeScale,
+      );
+    } else {
+      safeScale = 1.0;
+      offset = Offset.zero;
+    }
 
-    final glowOpacity = switch (style) {
+    for (final layer in visibleLayers) {
+      _paintLayer(canvas, layer, safeScale, offset);
+    }
+  }
+
+  void _paintLayer(
+    Canvas canvas,
+    HandwritingLayer layer,
+    double safeScale,
+    Offset offset,
+  ) {
+    final glowOpacity = switch (layer.style) {
+      HandwritingStrokeStyle.fire => 0.54,
       HandwritingStrokeStyle.neon => 0.48,
       HandwritingStrokeStyle.marker => 0.18,
       HandwritingStrokeStyle.chalk => 0.12,
       HandwritingStrokeStyle.smooth => 0.30,
     };
-    final glowWidth = switch (style) {
+    final glowWidth = switch (layer.style) {
+      HandwritingStrokeStyle.fire => 2.65,
       HandwritingStrokeStyle.neon => 2.25,
       HandwritingStrokeStyle.marker => 1.35,
       HandwritingStrokeStyle.chalk => 1.2,
       HandwritingStrokeStyle.smooth => 1.7,
     };
-    final blur = switch (style) {
+    final blur = switch (layer.style) {
+      HandwritingStrokeStyle.fire => 18.0,
       HandwritingStrokeStyle.neon => 22.0,
       HandwritingStrokeStyle.marker => 9.0,
       HandwritingStrokeStyle.chalk => 5.0,
@@ -100,42 +137,66 @@ class _HandwritingPainter extends CustomPainter {
     };
 
     final glowPaint = Paint()
-      ..color = color.withOpacity(glowOpacity)
+      ..color = layer.style == HandwritingStrokeStyle.fire
+          ? const Color(0xFFFF4D00).withOpacity(glowOpacity)
+          : layer.color.withOpacity(glowOpacity)
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = strokeWidth * safeScale * glowWidth
+      ..strokeWidth = layer.strokeWidth * safeScale * glowWidth
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
 
     final mainPaint = Paint()
-      ..color = style == HandwritingStrokeStyle.chalk
-          ? color.withOpacity(0.82)
-          : color
+      ..color = layer.style == HandwritingStrokeStyle.chalk
+          ? layer.color.withOpacity(0.82)
+          : layer.color
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = strokeWidth *
+      ..strokeWidth = layer.strokeWidth *
           safeScale *
-          (style == HandwritingStrokeStyle.marker ? 1.28 : 1.0);
+          (layer.style == HandwritingStrokeStyle.marker ? 1.28 : 1.0);
 
-    for (final stroke in strokes) {
+    for (final stroke in layer.strokes) {
       final path = _pathFor(stroke, safeScale, offset);
       canvas.drawPath(path, glowPaint);
     }
 
-    for (final stroke in strokes) {
-      final path = _pathFor(stroke, safeScale, offset);
-      canvas.drawPath(path, mainPaint);
-    }
-
-    if (style == HandwritingStrokeStyle.chalk) {
-      final dustPaint = Paint()
-        ..color = color.withOpacity(0.18)
+    if (layer.style == HandwritingStrokeStyle.fire) {
+      final emberPaint = Paint()
+        ..color = const Color(0xFFFFE066).withOpacity(0.9)
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
-        ..strokeWidth = strokeWidth * safeScale * 0.38;
-      for (final stroke in strokes) {
+        ..strokeWidth = layer.strokeWidth * safeScale * 0.45;
+      final heatPaint = Paint()
+        ..color = const Color(0xFFFF2D55).withOpacity(0.32)
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..strokeWidth = layer.strokeWidth * safeScale * 1.65
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+      for (final stroke in layer.strokes) {
+        final path = _pathFor(stroke, safeScale, offset);
+        canvas.drawPath(path, heatPaint);
+        canvas.drawPath(path, mainPaint);
+        canvas.drawPath(path, emberPaint);
+      }
+    } else {
+      for (final stroke in layer.strokes) {
+        final path = _pathFor(stroke, safeScale, offset);
+        canvas.drawPath(path, mainPaint);
+      }
+    }
+
+    if (layer.style == HandwritingStrokeStyle.chalk) {
+      final dustPaint = Paint()
+        ..color = layer.color.withOpacity(0.18)
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..strokeWidth = layer.strokeWidth * safeScale * 0.38;
+      for (final stroke in layer.strokes) {
         final jittered = stroke
             .asMap()
             .entries
@@ -165,12 +226,14 @@ class _HandwritingPainter extends CustomPainter {
     return path;
   }
 
-  Rect? _boundsFor(List<List<Offset>> strokes) {
+  Rect? _boundsFor(List<HandwritingLayer> layers) {
     Rect? rect;
-    for (final stroke in strokes) {
-      for (final point in stroke) {
-        final pointRect = Rect.fromCircle(center: point, radius: 1);
-        rect = rect == null ? pointRect : rect!.expandToInclude(pointRect);
+    for (final layer in layers) {
+      for (final stroke in layer.strokes) {
+        for (final point in stroke) {
+          final pointRect = Rect.fromCircle(center: point, radius: 1);
+          rect = rect == null ? pointRect : rect.expandToInclude(pointRect);
+        }
       }
     }
     return rect;
@@ -178,10 +241,8 @@ class _HandwritingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HandwritingPainter oldDelegate) {
-    return oldDelegate.strokes != strokes ||
-        oldDelegate.color != color ||
-        oldDelegate.strokeWidth != strokeWidth ||
-        oldDelegate.style != style ||
-        oldDelegate.preview != preview;
+    return oldDelegate.layers != layers ||
+        oldDelegate.preview != preview ||
+        oldDelegate.fitToContent != fitToContent;
   }
 }

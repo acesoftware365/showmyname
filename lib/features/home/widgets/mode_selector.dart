@@ -32,13 +32,8 @@ class ModeSelector extends StatelessWidget {
     required this.logoLabel,
   });
 
-  bool _isTablet(BuildContext context) {
-    return MediaQuery.of(context).size.shortestSide >= 700;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final tablet = _isTablet(context);
     final items = [
       _ModeItem(HomeMode.airport, Icons.flight_takeoff, airportLabel),
       _ModeItem(HomeMode.event, Icons.mic_none, eventLabel),
@@ -47,49 +42,37 @@ class ModeSelector extends StatelessWidget {
       _ModeItem(HomeMode.logo, Icons.image_outlined, logoLabel),
     ];
 
-    final gap = tablet ? 12.0 : 8.0;
+    const gap = 8.0;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final topWidth = (constraints.maxWidth - gap * 2) / 3;
-        final bottomWidth = (constraints.maxWidth - gap) / 2;
+        final columns = constraints.maxWidth >= 600 ? 5 : 3;
+        final textScale = MediaQuery.textScalerOf(context).scale(12) / 12;
+        final pillHeight =
+            76.0 + 32.0 * (textScale - 1).clamp(0.0, double.infinity);
+        Widget row(List<_ModeItem> rowItems) => Row(
+              children: [
+                for (var i = 0; i < rowItems.length; i++) ...[
+                  if (i > 0) const SizedBox(width: gap),
+                  Expanded(
+                    child: _ModePill(
+                      selected: rowItems[i].mode == value,
+                      icon: rowItems[i].icon,
+                      label: rowItems[i].label,
+                      height: pillHeight,
+                      onTap: () => onChanged(rowItems[i].mode),
+                    ),
+                  ),
+                ],
+              ],
+            );
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              children: [
-                for (var i = 0; i < 3; i++) ...[
-                  SizedBox(
-                    width: topWidth,
-                    child: _ModePill(
-                      selected: items[i].mode == value,
-                      icon: items[i].icon,
-                      label: items[i].label,
-                      tablet: tablet,
-                      onTap: () => onChanged(items[i].mode),
-                    ),
-                  ),
-                  if (i < 2) SizedBox(width: gap),
-                ],
-              ],
-            ),
-            SizedBox(height: gap),
-            Row(
-              children: [
-                for (var i = 3; i < items.length; i++) ...[
-                  SizedBox(
-                    width: bottomWidth,
-                    child: _ModePill(
-                      selected: items[i].mode == value,
-                      icon: items[i].icon,
-                      label: items[i].label,
-                      tablet: tablet,
-                      onTap: () => onChanged(items[i].mode),
-                    ),
-                  ),
-                  if (i < items.length - 1) SizedBox(width: gap),
-                ],
-              ],
-            ),
+            row(items.take(columns).toList()),
+            if (columns < items.length) ...[
+              const SizedBox(height: gap),
+              row(items.skip(columns).toList()),
+            ],
           ],
         );
       },
@@ -109,75 +92,78 @@ class _ModePill extends StatelessWidget {
   final bool selected;
   final IconData icon;
   final String label;
-  final bool tablet;
+  final double height;
   final VoidCallback onTap;
 
   const _ModePill({
     required this.selected,
     required this.icon,
     required this.label,
-    required this.tablet,
+    required this.height,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final accent = Theme.of(context).colorScheme.primary;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      height: tablet ? 88 : 76,
-      decoration: BoxDecoration(
-        color: selected
-            ? accent.withOpacity(0.28)
-            : Colors.white.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: AnimatedContainer(
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 180),
+        height: height,
+        decoration: BoxDecoration(
           color: selected
-              ? accent.withOpacity(0.95)
-              : Colors.white.withOpacity(0.12),
-          width: selected ? 1.4 : 1,
+              ? accent.withOpacity(0.28)
+              : Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected
+                ? accent.withOpacity(0.95)
+                : Colors.white.withOpacity(0.12),
+            width: selected ? 1.4 : 1,
+          ),
+          boxShadow: [
+            if (selected)
+              BoxShadow(
+                color: accent.withOpacity(0.10),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+          ],
         ),
-        boxShadow: [
-          if (selected)
-            BoxShadow(
-              color: accent.withOpacity(0.32),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(22),
-          onTap: onTap,
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: tablet ? 12 : 8,
-              vertical: tablet ? 12 : 8,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  size: tablet ? 26 : 20,
-                  color: selected ? Colors.white : Colors.white70,
-                ),
-                SizedBox(height: tablet ? 7 : 5),
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    selected ? Icons.check_circle_outline : icon,
+                    size: 20,
                     color: selected ? Colors.white : Colors.white70,
-                    fontSize: tablet ? 15 : 11,
-                    height: 1.05,
-                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 5),
+                  Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: selected ? Colors.white : Colors.white70,
+                      fontSize: 12,
+                      height: 1.05,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

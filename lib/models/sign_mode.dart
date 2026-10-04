@@ -60,4 +60,5 @@ enum HandwritingStrokeStyle {
   marker,
   neon,
   chalk,
+  fire,
 }

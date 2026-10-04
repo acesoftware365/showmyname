@@ -441,4 +441,52 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get backgroundColor => 'Background';
+
+  @override
+  String get editSignText => '编辑文字';
+
+  @override
+  String get livePreview => '实时预览';
+
+  @override
+  String get appearance => '外观';
+
+  @override
+  String get appearanceHint => '大小、颜色和对齐方式';
+
+  @override
+  String get doneEditing => '完成';
+
+  @override
+  String get boldText => '粗体';
+
+  @override
+  String get airportIcon => '机场图标';
+
+  @override
+  String get alignLeft => '左对齐';
+
+  @override
+  String get alignCenter => '居中';
+
+  @override
+  String get alignRight => '右对齐';
+
+  @override
+  String get advertisement => '广告';
+
+  @override
+  String get textTab => '文字';
+
+  @override
+  String get italicText => '斜体';
+
+  @override
+  String get underlineText => '下划线';
+
+  @override
+  String get signIcon => '图标';
+
+  @override
+  String get editSign => '编辑';
 }

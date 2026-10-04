@@ -443,4 +443,52 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get backgroundColor => 'Background';
+
+  @override
+  String get editSignText => 'टेक्स्ट संपादित करें';
+
+  @override
+  String get livePreview => 'लाइव प्रीव्यू';
+
+  @override
+  String get appearance => 'दिखावट';
+
+  @override
+  String get appearanceHint => 'आकार, रंग और संरेखण';
+
+  @override
+  String get doneEditing => 'हो गया';
+
+  @override
+  String get boldText => 'बोल्ड';
+
+  @override
+  String get airportIcon => 'हवाई अड्डे का आइकन';
+
+  @override
+  String get alignLeft => 'बाईं ओर संरेखित करें';
+
+  @override
+  String get alignCenter => 'बीच में रखें';
+
+  @override
+  String get alignRight => 'दाईं ओर संरेखित करें';
+
+  @override
+  String get advertisement => 'विज्ञापन';
+
+  @override
+  String get textTab => 'टेक्स्ट';
+
+  @override
+  String get italicText => 'इटैलिक';
+
+  @override
+  String get underlineText => 'रेखांकित';
+
+  @override
+  String get signIcon => 'चिह्न';
+
+  @override
+  String get editSign => 'संपादित करें';
 }

@@ -121,5 +121,21 @@
   "languageJapanese": "जापानी",
   "languageRussian": "रूसी",
   "languageChinese": "चीनी",
-  "languageArabic": "अरबी"
+  "languageArabic": "अरबी",
+  "editSignText": "टेक्स्ट संपादित करें",
+  "livePreview": "लाइव प्रीव्यू",
+  "appearance": "दिखावट",
+  "appearanceHint": "आकार, रंग और संरेखण",
+  "doneEditing": "हो गया",
+  "boldText": "बोल्ड",
+  "airportIcon": "हवाई अड्डे का आइकन",
+  "alignLeft": "बाईं ओर संरेखित करें",
+  "alignCenter": "बीच में रखें",
+  "alignRight": "दाईं ओर संरेखित करें",
+  "advertisement": "विज्ञापन",
+  "textTab": "टेक्स्ट",
+  "italicText": "इटैलिक",
+  "underlineText": "रेखांकित",
+  "signIcon": "चिह्न",
+  "editSign": "संपादित करें"
 }

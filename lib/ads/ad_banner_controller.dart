@@ -71,8 +71,9 @@ class AdBannerController extends ChangeNotifier {
     _ad = null;
     notifyListeners();
 
-    final adSize =
-        await AdSize.getAnchoredAdaptiveBannerAdSize(orientation, width);
+    final adSize = Platform.isIOS
+        ? AdSize.banner
+        : await AdSize.getAnchoredAdaptiveBannerAdSize(orientation, width);
     if (adSize == null) {
       _loading = false;
       _log(

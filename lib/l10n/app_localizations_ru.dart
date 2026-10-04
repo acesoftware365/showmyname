@@ -446,4 +446,52 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get backgroundColor => 'Background';
+
+  @override
+  String get editSignText => 'Изменить текст';
+
+  @override
+  String get livePreview => 'Предпросмотр';
+
+  @override
+  String get appearance => 'Оформление';
+
+  @override
+  String get appearanceHint => 'Размер, цвета и выравнивание';
+
+  @override
+  String get doneEditing => 'Готово';
+
+  @override
+  String get boldText => 'Жирный';
+
+  @override
+  String get airportIcon => 'Значок аэропорта';
+
+  @override
+  String get alignLeft => 'По левому краю';
+
+  @override
+  String get alignCenter => 'По центру';
+
+  @override
+  String get alignRight => 'По правому краю';
+
+  @override
+  String get advertisement => 'Реклама';
+
+  @override
+  String get textTab => 'Текст';
+
+  @override
+  String get italicText => 'Курсив';
+
+  @override
+  String get underlineText => 'Подчёркивание';
+
+  @override
+  String get signIcon => 'Значок';
+
+  @override
+  String get editSign => 'Изменить';
 }
