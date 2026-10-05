@@ -49,13 +49,14 @@ class _EffectSignState extends State<EffectSign>
     if (text.trim().isEmpty) return 40;
     final maxW = constraints.maxWidth * 0.9;
     final maxH = constraints.maxHeight * 0.72;
+    final manualScale = scale.clamp(0.55, 5.0);
     double low = 12;
     double high = widget.preview ? 96 : 230;
     double best = 36;
 
     while ((high - low) > 1) {
       final mid = (low + high) / 2;
-      final size = mid * scale.clamp(0.55, 1.7);
+      final size = mid;
       final painter = TextPainter(
         text: TextSpan(
           text: text,
@@ -90,7 +91,7 @@ class _EffectSignState extends State<EffectSign>
       }
     }
 
-    return best;
+    return best * manualScale;
   }
 
   TextAlign _alignForConfig(SignConfig c) {
@@ -379,23 +380,20 @@ class _EffectSignState extends State<EffectSign>
             ? 0.72 + math.sin(_controller.value * math.pi * 2) * 0.22
             : 1.0;
 
-        return Padding(
-          padding: EdgeInsets.all(widget.preview ? 0 : 20),
-          child: CustomPaint(
-            painter: _LedMatrixPainter(
-              message: c.message ?? '',
-              color: c.ledColor,
-              fontSize: fontSize,
-              dotSize: c.ledDotSize,
-              dotSpacing: c.ledDotSpacing,
-              brightness: c.ledBrightness * pulse,
-              glowIntensity: c.ledGlowIntensity,
-              borderGlow: c.ledBorderGlow,
-              animation: c.ledAnimation,
-              animationProgress: _controller.value,
-            ),
-            child: const SizedBox.expand(),
+        return CustomPaint(
+          painter: _LedMatrixPainter(
+            message: c.message ?? '',
+            color: c.ledColor,
+            backgroundColor: c.backgroundColor,
+            fontSize: fontSize,
+            dotSize: c.ledDotSize,
+            dotSpacing: c.ledDotSpacing,
+            brightness: c.ledBrightness * pulse,
+            glowIntensity: c.ledGlowIntensity,
+            animation: c.ledAnimation,
+            animationProgress: _controller.value,
           ),
+          child: const SizedBox.expand(),
         );
       },
     );
@@ -453,61 +451,34 @@ class _EffectSignState extends State<EffectSign>
 class _LedMatrixPainter extends CustomPainter {
   final String message;
   final Color color;
+  final Color backgroundColor;
   final double fontSize;
   final double dotSize;
   final double dotSpacing;
   final double brightness;
   final double glowIntensity;
-  final double borderGlow;
   final LedAnimation animation;
   final double animationProgress;
 
   const _LedMatrixPainter({
     required this.message,
     required this.color,
+    required this.backgroundColor,
     required this.fontSize,
     required this.dotSize,
     required this.dotSpacing,
     required this.brightness,
     required this.glowIntensity,
-    required this.borderGlow,
     required this.animation,
     required this.animationProgress,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final panel = RRect.fromRectAndRadius(
-      Offset.zero & size,
-      const Radius.circular(22),
-    );
-    final glow = borderGlow.clamp(0.0, 1.0);
-    final bgPaint = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF05030B), Color(0xFF10091D), Color(0xFF020105)],
-      ).createShader(Offset.zero & size);
-    canvas.drawRRect(panel, bgPaint);
-
-    canvas.drawRRect(
-      panel,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = color.withOpacity(0.55 + 0.35 * glow)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 8 + 16 * glow),
-    );
-    canvas.drawRRect(
-      panel.deflate(1),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = Color.lerp(Colors.white, color, 0.42)!.withOpacity(0.55),
-    );
-
+    final panel = Offset.zero & size;
+    canvas.drawRect(panel, Paint()..color = backgroundColor);
     canvas.save();
-    canvas.clipRRect(panel);
+    canvas.clipRect(panel);
     final pitch = _effectivePitch;
     _drawBackgroundDots(canvas, size, pitch);
 
@@ -603,12 +574,12 @@ class _LedMatrixPainter extends CustomPainter {
   bool shouldRepaint(covariant _LedMatrixPainter oldDelegate) {
     return oldDelegate.message != message ||
         oldDelegate.color != color ||
+        oldDelegate.backgroundColor != backgroundColor ||
         oldDelegate.fontSize != fontSize ||
         oldDelegate.dotSize != dotSize ||
         oldDelegate.dotSpacing != dotSpacing ||
         oldDelegate.brightness != brightness ||
         oldDelegate.glowIntensity != glowIntensity ||
-        oldDelegate.borderGlow != borderGlow ||
         oldDelegate.animation != animation ||
         oldDelegate.animationProgress != animationProgress;
   }

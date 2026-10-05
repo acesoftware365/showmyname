@@ -53,6 +53,7 @@ enum LogoTransitionEffect {
   fade,
   slide,
   zoom,
+  wipe,
 }
 
 enum HandwritingStrokeStyle {

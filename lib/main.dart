@@ -57,11 +57,15 @@ class _BootstrapState extends State<_Bootstrap> {
             // ✅ FIX AQUÍ:
             routerConfig: AppRouter.router,
             builder: (context, child) {
-              return DisplayFeatureSubScreen(
-                anchorPoint: Directionality.of(context) == TextDirection.rtl
-                    ? const Offset(double.maxFinite, 0)
-                    : Offset.zero,
-                child: ForceUpdateGate(child: child ?? const SizedBox.shrink()),
+              return DecoratedBox(
+                decoration: _controller.buildBackgroundDecoration(),
+                child: DisplayFeatureSubScreen(
+                  anchorPoint: Directionality.of(context) == TextDirection.rtl
+                      ? const Offset(double.maxFinite, 0)
+                      : Offset.zero,
+                  child:
+                      ForceUpdateGate(child: child ?? const SizedBox.shrink()),
+                ),
               );
             },
             theme: _controller.buildTheme(),

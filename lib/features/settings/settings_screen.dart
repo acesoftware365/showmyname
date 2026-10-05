@@ -26,6 +26,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _loading = false;
   String _languageValue = 'system';
   AppThemeStyle _themeValue = AppThemeStyle.purple;
+  VisualThemeStyle _visualThemeValue = VisualThemeStyle.classic;
   bool _isPro = false;
 
   // ✅ Share anchor for iPad (popover)
@@ -51,16 +52,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final lang = locale?.languageCode ?? 'system';
     final isPro = await SubscriptionManager.isPro();
     var theme = controller.themeStyle;
+    var visualTheme = controller.visualThemeStyle;
 
-    if (!isPro && _isPremiumTheme(theme)) {
+    if (!isPro && _isPremiumColorTheme(theme)) {
       theme = AppThemeStyle.purple;
       await controller.setThemeStyle(theme);
+    }
+    if (!isPro && _isPremiumVisualTheme(visualTheme)) {
+      visualTheme = VisualThemeStyle.classic;
+      await controller.setVisualThemeStyle(visualTheme);
     }
 
     if (!mounted) return;
     setState(() {
       _languageValue = lang;
       _themeValue = theme;
+      _visualThemeValue = visualTheme;
       _isPro = isPro;
       _loading = false;
     });
@@ -83,10 +90,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _onThemeChanged(AppThemeStyle value) async {
-    final t = AppLocalizations.of(context);
-    if (_isPremiumTheme(value) && !_isPro) {
+    if (_isPremiumColorTheme(value) && !_isPro) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.themeProRequired)),
+        SnackBar(content: Text(AppLocalizations.of(context).themeProRequired)),
       );
       context.push('/paywall');
       return;
@@ -98,11 +104,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(t.themeSaved)),
+      SnackBar(content: Text(AppLocalizations.of(context).themeSaved)),
     );
   }
 
-  bool _isPremiumTheme(AppThemeStyle style) => style != AppThemeStyle.purple;
+  Future<void> _onVisualThemeChanged(VisualThemeStyle value) async {
+    if (_isPremiumVisualTheme(value) && !_isPro) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Visual themes are included with Pro.')),
+      );
+      context.push('/paywall');
+      return;
+    }
+
+    final controller = AppScope.read(context);
+    setState(() => _visualThemeValue = value);
+    await controller.setVisualThemeStyle(value);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Visual theme saved.')),
+    );
+  }
 
   String _themeLabel(AppThemeStyle style, AppLocalizations t) {
     return switch (style) {
@@ -118,6 +141,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     };
   }
 
+  bool _isPremiumColorTheme(AppThemeStyle style) {
+    return style != AppThemeStyle.purple && style != AppThemeStyle.blue;
+  }
+
+  bool _isPremiumVisualTheme(VisualThemeStyle style) {
+    return style != VisualThemeStyle.classic;
+  }
+
   Color _themeColor(AppThemeStyle style) {
     return switch (style) {
       AppThemeStyle.purple => const Color(0xFF8B5CF6),
@@ -129,6 +160,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
       AppThemeStyle.cherry => const Color(0xFFFF2D75),
       AppThemeStyle.lemon => const Color(0xFFFACC15),
       AppThemeStyle.cyber => const Color(0xFF39FF14),
+    };
+  }
+
+  String _visualThemeLabel(VisualThemeStyle style) {
+    return switch (style) {
+      VisualThemeStyle.classic => 'Classic',
+      VisualThemeStyle.glassmorphism => 'Glassmorphism',
+      VisualThemeStyle.claymorphism => 'Claymorphism',
+      VisualThemeStyle.skeuomorphism => 'Skeuomorphism',
+    };
+  }
+
+  IconData _visualThemeIcon(VisualThemeStyle style) {
+    return switch (style) {
+      VisualThemeStyle.classic => Icons.palette_outlined,
+      VisualThemeStyle.glassmorphism => Icons.layers_outlined,
+      VisualThemeStyle.claymorphism => Icons.blur_on_outlined,
+      VisualThemeStyle.skeuomorphism => Icons.dialpad_outlined,
     };
   }
 
@@ -275,7 +324,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 14),
 
-          // Theme
+          // Color theme
           Card(
             child: Padding(
               padding: const EdgeInsets.all(14),
@@ -283,7 +332,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    t.theme,
+                    'Color theme',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 10),
@@ -311,7 +360,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             const SizedBox(width: 10),
                             Text(_themeLabel(style, t)),
-                            if (_isPremiumTheme(style)) ...[
+                            if (_isPremiumColorTheme(style)) ...[
                               const SizedBox(width: 8),
                               Icon(
                                 _isPro ? Icons.workspace_premium : Icons.lock,
@@ -331,8 +380,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    t.themeProHint,
+                    'Purple Neon and Electric Blue are free. Extra colors are included with Pro.',
                     style: const TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // Visual theme
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Visual theme',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<VisualThemeStyle>(
+                    key: const ValueKey('visual-theme'),
+                    value: _visualThemeValue,
+                    items: VisualThemeStyle.values.map((style) {
+                      return DropdownMenuItem(
+                        value: style,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(_visualThemeIcon(style), size: 19),
+                            const SizedBox(width: 10),
+                            Text(_visualThemeLabel(style)),
+                            if (_isPremiumVisualTheme(style)) ...[
+                              const SizedBox(width: 8),
+                              Icon(
+                                _isPro ? Icons.workspace_premium : Icons.lock,
+                                size: 16,
+                                color: _isPro
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.white54,
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) _onVisualThemeChanged(value);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Classic is free. Visual themes are included with Pro.',
+                    style: TextStyle(color: Colors.white70),
                   ),
                 ],
               ),

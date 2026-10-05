@@ -284,6 +284,15 @@ class _DisplayScreenState extends State<DisplayScreen>
                   ),
                   child: FadeTransition(opacity: anim, child: child),
                 ),
+              LogoTransitionEffect.wipe => SizeTransition(
+                  sizeFactor: CurvedAnimation(
+                    parent: anim,
+                    curve: Curves.easeOutCubic,
+                  ),
+                  axis: Axis.horizontal,
+                  axisAlignment: -1,
+                  child: child,
+                ),
               LogoTransitionEffect.fade =>
                 FadeTransition(opacity: anim, child: child),
             };

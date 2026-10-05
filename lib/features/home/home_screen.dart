@@ -109,6 +109,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _colorShift = false;
   double _eventFontScale = 1.0;
   ConcertTextEffect _concertTextEffect = ConcertTextEffect.ledDotMatrix;
+  int _concertEditorTab = 0;
   Color _ledColor = const Color(0xFFB56CFF);
   double _ledGlowIntensity = 0.75;
   double _ledBorderGlow = 0.85;
@@ -192,6 +193,10 @@ class _HomeScreenState extends State<HomeScreen>
   bool _persistentRotateHint = false;
   bool _narrowHandwritingEditorOpen = false;
   bool _narrowHandwritingEditorCloseScheduled = false;
+  bool _narrowLogoEditorOpen = false;
+  bool _narrowLogoEditorCloseScheduled = false;
+  bool _narrowConcertEditorOpen = false;
+  bool _narrowConcertEditorCloseScheduled = false;
   late final AnimationController _wiggleController;
   late final Animation<double> _wiggleTurns; // rotation turns
 
@@ -250,15 +255,23 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void didChangeMetrics() {
     super.didChangeMetrics();
-    if (!_narrowHandwritingEditorOpen ||
-        _narrowHandwritingEditorCloseScheduled) {
+    if ((!_narrowHandwritingEditorOpen &&
+            !_narrowLogoEditorOpen &&
+            !_narrowConcertEditorOpen) ||
+        _narrowHandwritingEditorCloseScheduled ||
+        _narrowLogoEditorCloseScheduled ||
+        _narrowConcertEditorCloseScheduled) {
       return;
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
-          !_narrowHandwritingEditorOpen ||
-          _narrowHandwritingEditorCloseScheduled) {
+          (!_narrowHandwritingEditorOpen &&
+              !_narrowLogoEditorOpen &&
+              !_narrowConcertEditorOpen) ||
+          _narrowHandwritingEditorCloseScheduled ||
+          _narrowLogoEditorCloseScheduled ||
+          _narrowConcertEditorCloseScheduled) {
         return;
       }
 
@@ -266,7 +279,13 @@ class _HomeScreenState extends State<HomeScreen>
       final logicalWidth = view.physicalSize.width / view.devicePixelRatio;
       if (logicalWidth < 600) return;
 
-      _narrowHandwritingEditorCloseScheduled = true;
+      if (_narrowHandwritingEditorOpen) {
+        _narrowHandwritingEditorCloseScheduled = true;
+      } else if (_narrowLogoEditorOpen) {
+        _narrowLogoEditorCloseScheduled = true;
+      } else {
+        _narrowConcertEditorCloseScheduled = true;
+      }
       Navigator.of(context, rootNavigator: true).pop();
     });
   }
@@ -450,6 +469,7 @@ class _HomeScreenState extends State<HomeScreen>
       setState(() {
         _logoPath = saved;
         _logoPaths = [saved];
+        _logoRotation = false;
         _loading = false;
       });
 
@@ -1277,11 +1297,6 @@ class _HomeScreenState extends State<HomeScreen>
   }) {
     final accent = Theme.of(context).colorScheme.primary;
     return Card(
-      color: const Color(0xFF11131C).withOpacity(0.92),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: Colors.white.withOpacity(0.08)),
-      ),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -1349,10 +1364,6 @@ class _HomeScreenState extends State<HomeScreen>
         child: preview,
       ),
     );
-  }
-
-  Widget _buildDialogPreview() {
-    return _buildLivePreview(AppLocalizations.of(context), height: 170);
   }
 
   Widget _buildFixedAdjustments(AppLocalizations t, {VoidCallback? onClose}) {
@@ -1575,104 +1586,295 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _openConcertPreviewPopup() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useRootNavigator: true,
-      useSafeArea: true,
-      backgroundColor: const Color(0xFF0D1018),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, modalSetState) {
-            void update(VoidCallback fn) {
-              setState(fn);
-              modalSetState(() {});
-            }
+    final t = AppLocalizations.of(context);
+    _narrowConcertEditorOpen = true;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useRootNavigator: true,
+        useSafeArea: true,
+        enableDrag: false,
+        backgroundColor: const Color(0xFF0D1018),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        builder: (ctx) {
+          return StatefulBuilder(
+            builder: (ctx, modalSetState) {
+              if (MediaQuery.sizeOf(ctx).width >= 600 &&
+                  !_narrowConcertEditorCloseScheduled) {
+                _narrowConcertEditorCloseScheduled = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _narrowConcertEditorOpen) {
+                    Navigator.of(ctx, rootNavigator: true).pop();
+                  }
+                });
+              }
 
-            return DraggableScrollableSheet(
-              expand: false,
-              initialChildSize: 0.78,
-              minChildSize: 0.45,
-              maxChildSize: 0.94,
-              builder: (context, controller) {
-                return ListView(
-                  controller: controller,
-                  padding: EdgeInsets.only(
-                    left: 18,
-                    right: 18,
-                    top: 18,
-                    bottom: MediaQuery.of(ctx).viewInsets.bottom + 18,
-                  ),
+              void update(VoidCallback fn) {
+                setState(fn);
+                modalSetState(() {});
+              }
+
+              return SizedBox(
+                key: const ValueKey('narrow-concert-editor'),
+                height: MediaQuery.sizeOf(ctx).height * 0.94,
+                child: Column(
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.visibility_outlined,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 10),
-                        Text('Preview & tune',
-                            style: Theme.of(context).textTheme.titleLarge),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 12, 8, 8),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.tune),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Concert / Event',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 14),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(22),
-                      child: _buildDialogPreview(),
+                    Divider(
+                      height: 1,
+                      color: Theme.of(context).colorScheme.outlineVariant,
                     ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<ConcertTextEffect>(
-                      value: _concertTextEffect,
-                      decoration:
-                          const InputDecoration(labelText: 'Concert Style'),
-                      items: const [
-                        DropdownMenuItem(
-                            value: ConcertTextEffect.simple,
-                            child: Text('Simple Text')),
-                        DropdownMenuItem(
-                            value: ConcertTextEffect.ledDotMatrix,
-                            child: Text('LED Dot Matrix')),
-                        DropdownMenuItem(
-                            value: ConcertTextEffect.neonGlow,
-                            child: Text('Neon Glow')),
-                        DropdownMenuItem(
-                            value: ConcertTextEffect.pulse,
-                            child: Text('Pulse')),
-                        DropdownMenuItem(
-                            value: ConcertTextEffect.marquee,
-                            child: Text('Marquee')),
-                        DropdownMenuItem(
-                            value: ConcertTextEffect.wave, child: Text('Wave')),
-                      ],
-                      onChanged: (v) => update(() => _concertTextEffect =
-                          v ?? ConcertTextEffect.ledDotMatrix),
+                    _buildConcertEditorTabs(update),
+                    Divider(
+                      height: 1,
+                      color: Theme.of(context).colorScheme.outlineVariant,
                     ),
-                    const SizedBox(height: 16),
-                    if (_concertTextEffect == ConcertTextEffect.ledDotMatrix)
-                      ..._buildLedPopupControls(update)
-                    else if (_concertTextEffect == ConcertTextEffect.neonGlow)
-                      ..._buildNeonPopupControls(update)
-                    else if (_concertTextEffect == ConcertTextEffect.marquee)
-                      ..._buildMarqueePopupControls(update)
-                    else
-                      _labeledSlider('Text size', _eventFontScale, 0.7, 1.5,
-                          (v) => update(() => _eventFontScale = v)),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+                        children: _buildConcertEditorControls(t, update),
+                      ),
+                    ),
                   ],
-                );
-              },
-            );
-          },
-        );
-      },
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      _narrowConcertEditorOpen = false;
+      _narrowConcertEditorCloseScheduled = false;
+    }
+  }
+
+  Widget _buildConcertEditorTabs(void Function(VoidCallback fn) update) {
+    return DefaultTabController(
+      key: ValueKey('concert-tabs-controller-$_concertEditorTab'),
+      length: 2,
+      initialIndex: _concertEditorTab,
+      child: TabBar(
+        key: const ValueKey('concert-editor-tabs'),
+        onTap: (index) => update(() => _concertEditorTab = index),
+        tabs: const [
+          Tab(key: ValueKey('concert-text-tab'), text: 'Text'),
+          Tab(key: ValueKey('concert-effects-tab'), text: 'Effects'),
+        ],
+      ),
     );
+  }
+
+  List<Widget> _buildConcertEditorControls(
+    AppLocalizations t,
+    void Function(VoidCallback fn) update,
+  ) {
+    return _concertEditorTab == 0
+        ? _buildConcertTextControls(update)
+        : _buildConcertEffectControls(t, update);
+  }
+
+  List<Widget> _buildConcertTextControls(
+    void Function(VoidCallback fn) update,
+  ) {
+    final usesEffectColor =
+        _concertTextEffect == ConcertTextEffect.ledDotMatrix ||
+            _concertTextEffect == ConcertTextEffect.neonGlow;
+
+    return [
+      TextField(
+        key: const ValueKey('concert-text-field'),
+        controller: _eventController,
+        minLines: 2,
+        maxLines: 3,
+        textCapitalization: TextCapitalization.sentences,
+        onChanged: (_) => update(() {}),
+        decoration: InputDecoration(
+          labelText: 'Message',
+          hintText: 'Type text and emojis',
+          alignLabelWithHint: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+      const SizedBox(height: 16),
+      _labeledSlider(
+        'Text size',
+        _eventFontScale,
+        0.7,
+        5.0,
+        (value) => update(() => _eventFontScale = value),
+      ),
+      if (!usesEffectColor) ...[
+        const SizedBox(height: 12),
+        _buildColorButton(
+          label: 'Text color',
+          color: _eventTextColor,
+          onPressed: () async {
+            final selected = await _pickColorDialog(context);
+            if (selected != null) update(() => _eventTextColor = selected);
+          },
+        ),
+      ],
+      const SizedBox(height: 12),
+      _buildColorButton(
+        label: 'Background',
+        color: _eventBackgroundColor,
+        onPressed: () async {
+          final selected = await _pickColorDialog(context);
+          if (selected != null) {
+            update(() => _eventBackgroundColor = selected);
+          }
+        },
+      ),
+    ];
+  }
+
+  List<Widget> _buildConcertEffectControls(
+    AppLocalizations t,
+    void Function(VoidCallback fn) update,
+  ) {
+    return [
+      DropdownButtonFormField<ConcertTextEffect>(
+        key: const ValueKey('concert-style'),
+        value: _concertTextEffect,
+        decoration: const InputDecoration(labelText: 'Concert Style'),
+        items: const [
+          DropdownMenuItem(
+            value: ConcertTextEffect.simple,
+            child: Text('Simple Text'),
+          ),
+          DropdownMenuItem(
+            value: ConcertTextEffect.ledDotMatrix,
+            child: Text('LED Dot Matrix'),
+          ),
+          DropdownMenuItem(
+            value: ConcertTextEffect.neonGlow,
+            child: Text('Neon Glow'),
+          ),
+          DropdownMenuItem(
+            value: ConcertTextEffect.pulse,
+            child: Text('Pulse'),
+          ),
+          DropdownMenuItem(
+            value: ConcertTextEffect.marquee,
+            child: Text('Marquee'),
+          ),
+          DropdownMenuItem(
+            value: ConcertTextEffect.wave,
+            child: Text('Wave'),
+          ),
+        ],
+        onChanged: (value) => update(
+          () => _concertTextEffect = value ?? ConcertTextEffect.ledDotMatrix,
+        ),
+      ),
+      const SizedBox(height: 16),
+      if (_concertTextEffect == ConcertTextEffect.ledDotMatrix)
+        ..._buildLedPopupControls(update)
+      else if (_concertTextEffect == ConcertTextEffect.neonGlow)
+        ..._buildNeonPopupControls(update)
+      else if (_concertTextEffect == ConcertTextEffect.marquee)
+        ..._buildMarqueePopupControls(update)
+      else if (_concertTextEffect == ConcertTextEffect.simple)
+        ..._buildSimpleConcertEffectControls(t, update),
+    ];
+  }
+
+  List<Widget> _buildSimpleConcertEffectControls(
+    AppLocalizations t,
+    void Function(VoidCallback fn) update,
+  ) {
+    return [
+      DropdownButtonFormField<MotionDirection>(
+        key: const ValueKey('simple-concert-motion-direction'),
+        value: _motionDirection,
+        isExpanded: true,
+        decoration: InputDecoration(labelText: t.motion),
+        items: [
+          DropdownMenuItem(
+              value: MotionDirection.none, child: Text(t.noMotion)),
+          DropdownMenuItem(
+            value: MotionDirection.rightToLeft,
+            child: Text(t.rightToLeft),
+          ),
+          DropdownMenuItem(
+            value: MotionDirection.leftToRight,
+            child: Text(t.leftToRight),
+          ),
+          DropdownMenuItem(
+            value: MotionDirection.bottomToTop,
+            child: Text(t.bottomToTop),
+          ),
+          DropdownMenuItem(
+            value: MotionDirection.topToBottom,
+            child: Text(t.topToBottom),
+          ),
+        ],
+        onChanged: (value) =>
+            update(() => _motionDirection = value ?? MotionDirection.none),
+      ),
+      const SizedBox(height: 12),
+      DropdownButtonFormField<MotionStyle>(
+        value: _motionStyle,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Motion style'),
+        items: [
+          DropdownMenuItem(value: MotionStyle.loop, child: Text(t.loop)),
+          DropdownMenuItem(value: MotionStyle.bounce, child: Text(t.bounce)),
+        ],
+        onChanged: (style) =>
+            update(() => _motionStyle = style ?? MotionStyle.loop),
+      ),
+      const SizedBox(height: 12),
+      _labeledSlider(
+        t.speed,
+        _motionSpeed,
+        20,
+        200,
+        (value) => update(() => _motionSpeed = value),
+      ),
+      Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t.colorShift,
+                    style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 2),
+                Text(t.colorShiftHelp,
+                    style: const TextStyle(color: Colors.white70)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Switch(
+            value: _colorShift,
+            onChanged: (value) => update(() => _colorShift = value),
+          ),
+        ],
+      ),
+    ];
   }
 
   Widget _buildColorWaveControls(
@@ -1880,14 +2082,10 @@ class _HomeScreenState extends State<HomeScreen>
         },
       ),
       const SizedBox(height: 12),
-      _labeledSlider('Text size', _eventFontScale, 0.7, 1.5,
-          (v) => update(() => _eventFontScale = v)),
       _labeledSlider('Brightness', _ledBrightness, 0.3, 1.3,
           (v) => update(() => _ledBrightness = v)),
       _labeledSlider('Glow intensity', _ledGlowIntensity, 0, 1,
           (v) => update(() => _ledGlowIntensity = v)),
-      _labeledSlider('Panel border glow', _ledBorderGlow, 0, 1,
-          (v) => update(() => _ledBorderGlow = v)),
       _labeledSlider(
           'Dot size', _ledDotSize, 2, 8, (v) => update(() => _ledDotSize = v)),
       _labeledSlider('Dot spacing', _ledDotSpacing, 5, 12,
@@ -1919,8 +2117,6 @@ class _HomeScreenState extends State<HomeScreen>
         },
       ),
       const SizedBox(height: 12),
-      _labeledSlider('Text size', _eventFontScale, 0.7, 1.5,
-          (v) => update(() => _eventFontScale = v)),
       _labeledSlider('Glow intensity', _neonGlowIntensity, 0, 1,
           (v) => update(() => _neonGlowIntensity = v)),
       _labeledSlider('Stroke thickness', _neonStrokeWidth, 0, 5,
@@ -1930,8 +2126,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   List<Widget> _buildMarqueePopupControls(void Function(VoidCallback) update) {
     return [
-      _labeledSlider('Text size', _eventFontScale, 0.7, 1.5,
-          (v) => update(() => _eventFontScale = v)),
       _labeledSlider('Speed', _marqueeSpeed, 20, 200,
           (v) => update(() => _marqueeSpeed = v)),
       const SizedBox(height: 8),
@@ -2427,7 +2621,15 @@ class _HomeScreenState extends State<HomeScreen>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: Theme.of(context).textTheme.titleSmall),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+            const SizedBox(width: 12),
             Text(value.toStringAsFixed(value >= 10 ? 0 : 2),
                 style: const TextStyle(color: Colors.white70)),
           ],
@@ -3248,6 +3450,591 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  Widget _buildNarrowConcertLayout(
+    AppLocalizations t,
+    BoxConstraints constraints,
+  ) {
+    final previewHeight =
+        (constraints.maxHeight - 150).clamp(130.0, 250.0).toDouble();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: previewHeight,
+            child: KeyedSubtree(
+              key: const ValueKey('narrow-concert-preview'),
+              child: _buildLivePreview(
+                t,
+                alignment: Alignment.center,
+                captureKey: _createdImageKey,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 52,
+            child: FilledButton.icon(
+              key: const ValueKey('edit-concert'),
+              onPressed: _openConcertPreviewPopup,
+              icon: const Icon(Icons.tune),
+              label: const Text('Edit Concert Style'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  key: const ValueKey('show-sign'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 52),
+                  ),
+                  onPressed: _showSign,
+                  icon: const Icon(Icons.fullscreen),
+                  label: Text(t.show),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Tooltip(
+                message: 'Share image',
+                child: SizedBox(
+                  width: 54,
+                  height: 52,
+                  child: FilledButton(
+                    key: const ValueKey('share-created-image'),
+                    style: FilledButton.styleFrom(padding: EdgeInsets.zero),
+                    onPressed: _shareCreatedImage,
+                    child: const Icon(Icons.ios_share),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWideConcertLayout(
+    AppLocalizations t,
+    BoxConstraints constraints,
+  ) {
+    final panelWidth = constraints.maxWidth < 750 ? 280.0 : 320.0;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: KeyedSubtree(
+                    key: const ValueKey('wide-concert-preview'),
+                    child: _buildLivePreview(
+                      t,
+                      alignment: Alignment.center,
+                      captureKey: _createdImageKey,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        key: const ValueKey('show-sign'),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 52),
+                        ),
+                        onPressed: _showSign,
+                        icon: const Icon(Icons.fullscreen),
+                        label: Text(t.show),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Tooltip(
+                      message: 'Share image',
+                      child: SizedBox(
+                        width: 54,
+                        height: 52,
+                        child: FilledButton(
+                          key: const ValueKey('share-created-image'),
+                          style: FilledButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                          ),
+                          onPressed: _shareCreatedImage,
+                          child: const Icon(Icons.ios_share),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          SizedBox(
+            width: panelWidth,
+            child: _buildWideConcertPanel(t),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWideConcertPanel(AppLocalizations t) {
+    return Material(
+      key: const ValueKey('wide-concert-panel'),
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          _buildConcertEditorTabs(setState),
+          Divider(
+            height: 1,
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: _buildConcertEditorControls(t, setState),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNarrowLogoLayout(
+    AppLocalizations t,
+    BoxConstraints constraints,
+  ) {
+    final hasLogo =
+        _logoPath != null && _logoPath!.isNotEmpty && _logoExistsSync;
+    final previewHeight =
+        (constraints.maxHeight - 150).clamp(130.0, 250.0).toDouble();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: previewHeight,
+            child: KeyedSubtree(
+              key: const ValueKey('narrow-logo-preview'),
+              child: _buildLivePreview(
+                t,
+                alignment: Alignment.center,
+                captureKey: _createdImageKey,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 52,
+            child: FilledButton.icon(
+              key: const ValueKey('edit-logo'),
+              onPressed: _openLogoEditor,
+              icon: const Icon(Icons.image_outlined),
+              label: const Text('Edit Logo'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  key: const ValueKey('show-sign'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 52),
+                  ),
+                  onPressed: _showSign,
+                  icon: const Icon(Icons.fullscreen),
+                  label: Text(t.show),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Tooltip(
+                message: 'Share image',
+                child: SizedBox(
+                  width: 54,
+                  height: 52,
+                  child: FilledButton(
+                    key: const ValueKey('share-created-image'),
+                    style: FilledButton.styleFrom(padding: EdgeInsets.zero),
+                    onPressed:
+                        hasLogo && !_logoRotation ? _shareCreatedImage : null,
+                    child: const Icon(Icons.ios_share),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Tooltip(
+                message: t.removeLogo,
+                child: SizedBox(
+                  width: 54,
+                  height: 52,
+                  child: OutlinedButton(
+                    key: const ValueKey('logo-remove'),
+                    style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
+                    onPressed: hasLogo ? _removeLogo : null,
+                    child: const Icon(Icons.delete_outline),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWideLogoLayout(
+    AppLocalizations t,
+    BoxConstraints constraints,
+  ) {
+    final panelWidth = constraints.maxWidth < 750 ? 280.0 : 320.0;
+    final hasLogo =
+        _logoPath != null && _logoPath!.isNotEmpty && _logoExistsSync;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _buildLivePreview(
+                    t,
+                    captureKey: _createdImageKey,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        key: const ValueKey('show-sign'),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 52),
+                        ),
+                        onPressed: _showSign,
+                        icon: const Icon(Icons.fullscreen),
+                        label: Text(t.show),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Tooltip(
+                      message: 'Share image',
+                      child: SizedBox(
+                        width: 54,
+                        height: 52,
+                        child: FilledButton(
+                          key: const ValueKey('share-created-image'),
+                          style: FilledButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                          ),
+                          onPressed: hasLogo && !_logoRotation
+                              ? _shareCreatedImage
+                              : null,
+                          child: const Icon(Icons.ios_share),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Tooltip(
+                      message: t.removeLogo,
+                      child: SizedBox(
+                        width: 54,
+                        height: 52,
+                        child: OutlinedButton(
+                          key: const ValueKey('logo-remove'),
+                          style: OutlinedButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                          ),
+                          onPressed: hasLogo ? _removeLogo : null,
+                          child: const Icon(Icons.delete_outline),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          SizedBox(
+            width: panelWidth,
+            child: _buildWideLogoPanel(t),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWideLogoPanel(AppLocalizations t) {
+    return Material(
+      key: const ValueKey('wide-logo-panel'),
+      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    height: 46,
+                    child: FilledButton.icon(
+                      key: const ValueKey('logo-upload'),
+                      onPressed: _pickLogo,
+                      icon: const Icon(Icons.upload_file),
+                      label: Text(t.uploadLogo),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 46,
+                    child: FilledButton.icon(
+                      key: const ValueKey('logo-upload-multiple'),
+                      onPressed: _pickMultipleLogos,
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('Multiple images'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _logoRotation,
+                    onChanged: _logoPaths.length <= 1
+                        ? null
+                        : (value) => setState(() => _logoRotation = value),
+                    title: const Text('Rotate images'),
+                    subtitle: const Text(
+                      'Cycles through multiple uploaded images.',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<LogoTransitionEffect>(
+                    value: _logoEffect,
+                    decoration: const InputDecoration(labelText: 'Logo effect'),
+                    items: const [
+                      DropdownMenuItem(
+                        value: LogoTransitionEffect.fade,
+                        child: Text('Fade'),
+                      ),
+                      DropdownMenuItem(
+                        value: LogoTransitionEffect.slide,
+                        child: Text('Slide'),
+                      ),
+                      DropdownMenuItem(
+                        value: LogoTransitionEffect.zoom,
+                        child: Text('Zoom'),
+                      ),
+                      DropdownMenuItem(
+                        value: LogoTransitionEffect.wipe,
+                        child: Text('Wipe'),
+                      ),
+                    ],
+                    onChanged: (value) => setState(
+                      () => _logoEffect = value ?? LogoTransitionEffect.fade,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _labeledSlider(
+                    'Time per image',
+                    _logoHoldSeconds,
+                    0.5,
+                    5,
+                    (value) => setState(() => _logoHoldSeconds = value),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openLogoEditor() async {
+    _narrowLogoEditorOpen = true;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useRootNavigator: true,
+        useSafeArea: true,
+        enableDrag: false,
+        backgroundColor: const Color(0xFF0D1018),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        builder: (ctx) {
+          return StatefulBuilder(
+            builder: (ctx, modalSetState) {
+              if (MediaQuery.sizeOf(ctx).width >= 600 &&
+                  !_narrowLogoEditorCloseScheduled) {
+                _narrowLogoEditorCloseScheduled = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _narrowLogoEditorOpen) {
+                    Navigator.of(ctx, rootNavigator: true).pop();
+                  }
+                });
+              }
+
+              void update(VoidCallback fn) {
+                setState(fn);
+                modalSetState(() {});
+              }
+
+              Future<void> pickLogo() async {
+                await _pickLogo();
+                if (ctx.mounted) modalSetState(() {});
+              }
+
+              Future<void> pickMultipleLogos() async {
+                await _pickMultipleLogos();
+                if (ctx.mounted) modalSetState(() {});
+              }
+
+              return SizedBox(
+                key: const ValueKey('narrow-logo-editor'),
+                height: MediaQuery.sizeOf(ctx).height * 0.94,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 12, 8, 8),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.image_outlined),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Edit Logo',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Divider(
+                      height: 1,
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+                        children: [
+                          SizedBox(
+                            height: 52,
+                            child: FilledButton.icon(
+                              key: const ValueKey('logo-upload'),
+                              onPressed: pickLogo,
+                              icon: const Icon(Icons.upload_file),
+                              label: const Text('Upload logo'),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 52,
+                            child: FilledButton.icon(
+                              key: const ValueKey('logo-upload-multiple'),
+                              onPressed: pickMultipleLogos,
+                              icon: const Icon(Icons.photo_library_outlined),
+                              label: const Text('Multiple images'),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: _logoRotation,
+                            onChanged: _logoPaths.length <= 1
+                                ? null
+                                : (value) => update(
+                                      () => _logoRotation = value,
+                                    ),
+                            title: const Text('Rotate images'),
+                            subtitle: const Text(
+                              'Cycles through multiple uploaded images.',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<LogoTransitionEffect>(
+                            value: _logoEffect,
+                            decoration: const InputDecoration(
+                              labelText: 'Logo effect',
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: LogoTransitionEffect.fade,
+                                child: Text('Fade'),
+                              ),
+                              DropdownMenuItem(
+                                value: LogoTransitionEffect.slide,
+                                child: Text('Slide'),
+                              ),
+                              DropdownMenuItem(
+                                value: LogoTransitionEffect.zoom,
+                                child: Text('Zoom'),
+                              ),
+                              DropdownMenuItem(
+                                value: LogoTransitionEffect.wipe,
+                                child: Text('Wipe'),
+                              ),
+                            ],
+                            onChanged: (value) => update(
+                              () => _logoEffect =
+                                  value ?? LogoTransitionEffect.fade,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _labeledSlider(
+                            'Time per image',
+                            _logoHoldSeconds,
+                            0.5,
+                            5,
+                            (value) => update(
+                              () => _logoHoldSeconds = value,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      _narrowLogoEditorOpen = false;
+      _narrowLogoEditorCloseScheduled = false;
+    }
+  }
+
   Future<void> _openHandwritingEditor() async {
     _narrowHandwritingEditorOpen = true;
     try {
@@ -3448,6 +4235,7 @@ class _HomeScreenState extends State<HomeScreen>
     final usesInlineEditor =
         _homeMode == HomeMode.airport || _homeMode == HomeMode.colorWave;
     final isHandwritingMode = _homeMode == HomeMode.handwriting;
+    final isConcertMode = _homeMode == HomeMode.event;
     final isLogoMode = _homeMode == HomeMode.logo;
 
     return Scaffold(
@@ -3543,6 +4331,18 @@ class _HomeScreenState extends State<HomeScreen>
             constraints,
             isPortrait && _persistentRotateHint,
           );
+        }
+        if (isConcertMode) {
+          if (constraints.maxWidth >= 600) {
+            return _buildWideConcertLayout(t, constraints);
+          }
+          return _buildNarrowConcertLayout(t, constraints);
+        }
+        if (isLogoMode) {
+          if (constraints.maxWidth >= 600) {
+            return _buildWideLogoLayout(t, constraints);
+          }
+          return _buildNarrowLogoLayout(t, constraints);
         }
         final sidePanel = usesInlineEditor && constraints.maxWidth >= 600;
         if (usesInlineEditor && !sidePanel) {
@@ -3730,6 +4530,10 @@ class _HomeScreenState extends State<HomeScreen>
                                         value: LogoTransitionEffect.zoom,
                                         child: Text('Zoom'),
                                       ),
+                                      DropdownMenuItem(
+                                        value: LogoTransitionEffect.wipe,
+                                        child: Text('Wipe'),
+                                      ),
                                     ],
                                     onChanged: (v) => setState(() =>
                                         _logoEffect =
@@ -3790,7 +4594,9 @@ class _HomeScreenState extends State<HomeScreen>
                       child: FilledButton(
                         key: const ValueKey('share-created-image'),
                         style: FilledButton.styleFrom(padding: EdgeInsets.zero),
-                        onPressed: _shareCreatedImage,
+                        onPressed: isLogoMode && _logoRotation
+                            ? null
+                            : _shareCreatedImage,
                         child: const Icon(Icons.ios_share),
                       ),
                     ),
